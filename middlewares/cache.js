@@ -1,7 +1,7 @@
 class CacheMiddleware {
   constructor() {
     this.cache = new Map();
-    this.ttl = 5 * 60 * 1000; // 5 minutes
+    this.ttl = 5 * 60 * 1000;
   }
 
   get(key) {
