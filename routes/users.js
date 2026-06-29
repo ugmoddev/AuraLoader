@@ -30,7 +30,6 @@ router.get('/:id', auth.authenticate, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Users can view their own profile, admins can view any
     if (req.user.id !== user.id && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
@@ -53,12 +52,10 @@ router.put('/:id', auth.authenticate, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Check permissions
     if (req.user.id !== parseInt(userId) && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
-    // Only admin can change role and status
     if ((role || status) && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Only admin can change role and status' });
     }
@@ -129,40 +126,6 @@ router.delete('/:id', auth.authenticate, auth.requireRole(['admin']), async (req
   } catch (error) {
     console.error('Error deleting user:', error);
     res.status(500).json({ error: 'Failed to delete user' });
-  }
-});
-
-// Create user (admin only)
-router.post('/', auth.authenticate, auth.requireRole(['admin']), async (req, res) => {
-  try {
-    const { username, password, email, role = 'user' } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password required' });
-    }
-
-    const existing = await db.get('SELECT * FROM users WHERE username = ?', [username]);
-    if (existing) {
-      return res.status(400).json({ error: 'Username already taken' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const apiKey = uuidv4();
-
-    const result = await db.run(`
-      INSERT INTO users (username, password, email, apiKey, role)
-      VALUES (?, ?, ?, ?, ?)
-    `, [username, hashedPassword, email || '', apiKey, role]);
-
-    const user = await db.get(
-      'SELECT id, username, email, role, status, createdAt FROM users WHERE id = ?',
-      [result.lastID]
-    );
-
-    res.status(201).json({ success: true, data: user, message: 'User created successfully' });
-  } catch (error) {
-    console.error('Error creating user:', error);
-    res.status(500).json({ error: 'Failed to create user' });
   }
 });
 
