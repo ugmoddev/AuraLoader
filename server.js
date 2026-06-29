@@ -17,12 +17,14 @@ const PORT = process.env.PORT || 10000;
 // MIDDLEWARE
 // ============================================================
 
+// Security & Compression
 app.use(compression());
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
 
+// CORS
 app.use(cors({
   origin: '*',
   credentials: true,
@@ -30,11 +32,14 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
+// Logging
 app.use(morgan('combined'));
+
+// Body Parser - QUAN TRỌNG: Phải có để xử lý cả JSON và form data
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Session - CẤU HÌNH QUAN TRỌNG
+// Session - QUAN TRỌNG: Phải cấu hình đúng
 app.use(session({
   secret: process.env.SESSION_SECRET || 'default_secret_change_me',
   resave: false,
@@ -47,17 +52,21 @@ app.use(session({
   }
 }));
 
+// Static files
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/storage', express.static(path.join(__dirname, 'storage')));
 
 // ============================================================
-// REQUEST LOGGER
+// REQUEST LOGGER (Debug)
 // ============================================================
 
 app.use((req, res, next) => {
   console.log(`📨 ${req.method} ${req.url}`);
   console.log(`  Session ID: ${req.sessionID}`);
   console.log(`  Session token: ${req.session?.token ? 'Present' : 'None'}`);
+  if (req.method === 'POST') {
+    console.log(`  Body:`, req.body);
+  }
   next();
 });
 
@@ -74,13 +83,22 @@ console.log('✅ Database initialized');
 // ============================================================
 
 const isAuthenticated = (req, res, next) => {
-  // Public routes
-  const publicRoutes = ['/login', '/register', '/auth/login', '/auth/register', '/auth/logout', '/test'];
+  // Public routes - KHÔNG CẦN AUTH
+  const publicRoutes = [
+    '/login', 
+    '/register', 
+    '/auth/login', 
+    '/auth/register', 
+    '/auth/logout', 
+    '/test'
+  ];
+  
   if (publicRoutes.includes(req.path) || req.path.startsWith('/auth/')) {
     console.log(`🔓 Public route: ${req.path}`);
     return next();
   }
 
+  // Lấy token từ header hoặc session
   const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
   
   console.log(`🔐 Protected route: ${req.path}`);
@@ -124,12 +142,12 @@ const requireRole = (roles) => {
 };
 
 // ============================================================
-// ROUTES
+// ROUTES - QUAN TRỌNG: API TRƯỚC, VIEWS SAU
 // ============================================================
 
 console.log('📄 Loading routes...');
 
-// 1. AUTH ROUTES (public)
+// 1. AUTH ROUTES (public - KHÔNG CẦN AUTH)
 const authRoutes = require('./routes/auth');
 app.use('/auth', authRoutes);
 
@@ -140,11 +158,13 @@ const cdnRoutes = require('./routes/cdn');
 const adminRoutes = require('./routes/admin');
 const userRoutes = require('./routes/users');
 
+// Apply authentication middleware to API routes
 app.use('/api', isAuthenticated);
 app.use('/loader', isAuthenticated);
 app.use('/admin', isAuthenticated);
 app.use('/users', isAuthenticated);
 
+// Register API routes
 app.use('/api', apiRoutes);
 app.use('/loader', loaderRoutes);
 app.use('/cdn', cdnRoutes);
@@ -154,8 +174,9 @@ app.use('/users', userRoutes);
 // 3. VIEW ROUTES (SAU CÙNG)
 const viewRoutes = require('./routes/views');
 
+// Login page - KHÔNG CẦN AUTH
 app.get('/login', (req, res) => {
-  // Nếu đã có session token, redirect về dashboard
+  // Nếu đã có session token hợp lệ, redirect về dashboard
   if (req.session?.token) {
     try {
       jwt.verify(req.session.token, process.env.JWT_SECRET);
@@ -185,6 +206,7 @@ app.get('/login', (req, res) => {
   }
 });
 
+// Register page - KHÔNG CẦN AUTH
 app.get('/register', (req, res) => {
   const viewPath = path.join(__dirname, 'views', 'register.html');
   const fs = require('fs');
@@ -204,12 +226,23 @@ app.get('/register', (req, res) => {
   }
 });
 
-// Protected view routes
-const protectedViewRoutes = ['/', '/dashboard', '/scripts', '/loaders', '/users', '/logs', '/settings', '/admin'];
+// Protected view routes (cần auth)
+const protectedViewRoutes = [
+  '/', 
+  '/dashboard', 
+  '/scripts', 
+  '/loaders', 
+  '/users', 
+  '/logs', 
+  '/settings', 
+  '/admin'
+];
 app.use(protectedViewRoutes, isAuthenticated);
 
+// Register view routes
 app.use('/', viewRoutes);
 
+// Logout
 app.get('/logout', (req, res) => {
   req.session.destroy();
   res.redirect('/login');
@@ -219,6 +252,7 @@ app.get('/logout', (req, res) => {
 // ERROR HANDLING
 // ============================================================
 
+// 404 Handler
 app.use((req, res) => {
   console.log(`⚠️ 404: ${req.method} ${req.url}`);
   if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
@@ -237,6 +271,7 @@ app.use((req, res) => {
   `);
 });
 
+// Global Error Handler
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err.stack);
   if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
@@ -268,5 +303,26 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 AuraHub Loader Platform');
   console.log(`📍 Running on http://0.0.0.0:${PORT}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('========================================');
+  console.log('📋 Available routes:');
+  console.log('  PUBLIC (No Auth):');
+  console.log('  - /login          Login page');
+  console.log('  - /register       Register page');
+  console.log('  - /auth/login     Login API (POST)');
+  console.log('  - /auth/register  Register API (POST)');
+  console.log('  - /auth/logout    Logout API (POST)');
+  console.log('  PROTECTED (Requires Auth):');
+  console.log('  - /               Dashboard');
+  console.log('  - /dashboard      Dashboard');
+  console.log('  - /scripts        Scripts Manager');
+  console.log('  - /loaders        Loaders Manager');
+  console.log('  - /users          Users Manager');
+  console.log('  - /logs           Logs Viewer');
+  console.log('  - /settings       Settings');
+  console.log('  - /admin          Admin Panel');
+  console.log('  API (Requires Auth):');
+  console.log('  - /api/scripts    Get all scripts');
+  console.log('  - /api/scripts    Create script (POST)');
+  console.log('  - /api/statistics Get statistics');
   console.log('========================================');
 });
