@@ -17,33 +17,25 @@ const PORT = process.env.PORT || 10000;
 // MIDDLEWARE
 // ============================================================
 
-// Security & Compression
 app.use(compression());
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
-
-// CORS & Logging
 app.use(cors());
 app.use(morgan('combined'));
-
-// Body Parser
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Session
 app.use(session({
   secret: process.env.SESSION_SECRET || 'default_secret_change_me',
   resave: false,
   saveUninitialized: true,
   cookie: { 
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 24 * 60 * 60 * 1000
   }
 }));
 
-// Static files
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/storage', express.static(path.join(__dirname, 'storage')));
 
@@ -56,30 +48,31 @@ const db = require('./database/database');
 console.log('✅ Database initialized');
 
 // ============================================================
-// AUTHENTICATION MIDDLEWARE
+// AUTHENTICATION MIDDLEWARE (FIXED)
 // ============================================================
 
 // Middleware to check if user is authenticated
 const isAuthenticated = (req, res, next) => {
-  // Check token from header or session
+  // BỎ QUA KIỂM TRA CHO CÁC ROUTE /auth/register
+  if (req.path === '/register' || req.path.startsWith('/auth/register')) {
+    return next();
+  }
+
   const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
   
   if (!token) {
-    // If it's an API request, return 401
     if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    // Otherwise redirect to login
     return res.redirect('/login');
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
-    req.session.token = token; // Store in session for convenience
+    req.session.token = token;
     next();
   } catch (error) {
-    // Invalid token
     if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
       return res.status(401).json({ error: 'Invalid token' });
     }
@@ -87,7 +80,6 @@ const isAuthenticated = (req, res, next) => {
   }
 };
 
-// Middleware for role-based access
 const requireRole = (roles) => {
   return (req, res, next) => {
     if (!req.user) {
@@ -117,35 +109,30 @@ const cdnRoutes = require('./routes/cdn');
 const adminRoutes = require('./routes/admin');
 const userRoutes = require('./routes/users');
 
-// Protect API routes
+// Protect API routes (EXCEPT register)
 app.use('/api', isAuthenticated);
 app.use('/loader', isAuthenticated);
 app.use('/admin', isAuthenticated);
 app.use('/users', isAuthenticated);
 
-// Register API routes
 app.use('/api', apiRoutes);
 app.use('/loader', loaderRoutes);
 app.use('/cdn', cdnRoutes);
 app.use('/admin', adminRoutes);
 app.use('/users', userRoutes);
 
-// 3. VIEW ROUTES (protected except login/register)
+// 3. VIEW ROUTES
 const viewRoutes = require('./routes/views');
 
 // Public view routes (no authentication required)
 app.get('/login', (req, res) => {
-  // If already logged in, redirect to dashboard
   const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
   if (token) {
     try {
       jwt.verify(token, process.env.JWT_SECRET);
       return res.redirect('/');
-    } catch (error) {
-      // Token invalid, proceed to login
-    }
+    } catch (error) {}
   }
-  // Render login page
   const viewPath = path.join(__dirname, 'views', 'login.html');
   const fs = require('fs');
   if (fs.existsSync(viewPath)) {
@@ -187,7 +174,6 @@ app.get('/register', (req, res) => {
 const protectedViewRoutes = ['/', '/dashboard', '/scripts', '/loaders', '/users', '/logs', '/settings', '/admin'];
 app.use(protectedViewRoutes, isAuthenticated);
 
-// Register view routes
 app.use('/', viewRoutes);
 
 // 4. LOGOUT
@@ -200,16 +186,11 @@ app.get('/logout', (req, res) => {
 // ERROR HANDLING
 // ============================================================
 
-// 404 handler
 app.use((req, res) => {
   console.log(`⚠️ 404: ${req.method} ${req.url}`);
-  
-  // If it's an API request, return JSON
   if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
     return res.status(404).json({ error: 'API endpoint not found' });
   }
-  
-  // Otherwise return HTML
   res.status(404).send(`
     <!DOCTYPE html>
     <html>
@@ -223,19 +204,14 @@ app.use((req, res) => {
   `);
 });
 
-// Global error handler
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err.stack);
-  
-  // If it's an API request, return JSON
   if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
     return res.status(500).json({ 
       error: 'Internal server error',
       message: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
-  
-  // Otherwise return HTML
   res.status(500).send(`
     <!DOCTYPE html>
     <html>
@@ -264,6 +240,8 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('  - /login          Login page');
   console.log('  - /register       Register page');
   console.log('  - /logout         Logout');
+  console.log('  - /auth/login     Login API (POST)');
+  console.log('  - /auth/register  Register API (POST) - NO AUTH REQUIRED');
   console.log('  PROTECTED ROUTES:');
   console.log('  - /               Dashboard');
   console.log('  - /dashboard      Dashboard');
@@ -276,9 +254,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('  API ROUTES:');
   console.log('  - /api/scripts    Get all scripts');
   console.log('  - /api/scripts    Create script (POST)');
-  console.log('  - /api/scripts/:id Delete script');
   console.log('  - /api/statistics Get statistics');
-  console.log('  - /auth/login     Login API');
-  console.log('  - /auth/register  Register API');
   console.log('========================================');
 });
