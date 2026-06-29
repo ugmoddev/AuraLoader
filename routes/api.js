@@ -4,7 +4,10 @@ const db = require('../database/database');
 const auth = require('../middlewares/auth');
 const crypto = require('crypto');
 
-// Get all scripts
+// TẤT CẢ ROUTES ĐỀU KHÔNG CÓ PREFIX /scripts NỮA
+// VÌ ĐÃ CÓ /api/scripts TRONG server.js
+
+// GET /api/scripts
 router.get('/scripts', async (req, res) => {
   try {
     const scripts = await db.query('SELECT * FROM scripts ORDER BY createdAt DESC');
@@ -14,7 +17,7 @@ router.get('/scripts', async (req, res) => {
   }
 });
 
-// Create script
+// POST /api/scripts
 router.post('/scripts', auth.authenticate, auth.requireRole(['admin', 'moderator']), async (req, res) => {
   try {
     const { name, author, description, version, source, category } = req.body;
@@ -33,7 +36,7 @@ router.post('/scripts', auth.authenticate, auth.requireRole(['admin', 'moderator
   }
 });
 
-// Delete script
+// DELETE /api/scripts/:id
 router.delete('/scripts/:id', auth.authenticate, auth.requireRole(['admin']), async (req, res) => {
   try {
     await db.run('DELETE FROM scripts WHERE uuid = ?', [req.params.id]);
@@ -43,7 +46,7 @@ router.delete('/scripts/:id', auth.authenticate, auth.requireRole(['admin']), as
   }
 });
 
-// Get statistics
+// GET /api/statistics
 router.get('/statistics', async (req, res) => {
   try {
     const scripts = await db.get('SELECT COUNT(*) as count FROM scripts');
