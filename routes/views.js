@@ -5,54 +5,20 @@ const fs = require('fs');
 
 console.log('📄 Loading views routes...');
 
-// Function to render HTML views
-function renderView(res, viewName, data = {}) {
+// Simple render function
+function renderView(res, viewName) {
   const viewPath = path.join(__dirname, '..', 'views', `${viewName}.html`);
-  
-  console.log(`📄 Rendering view: ${viewName}`);
+  console.log(`📄 Rendering: ${viewName}`);
   console.log(`📁 Path: ${viewPath}`);
   
   if (!fs.existsSync(viewPath)) {
-    console.error(`❌ View not found: ${viewPath}`);
-    return res.status(404).send(`
-      <!DOCTYPE html>
-      <html>
-      <head><title>View Not Found</title></head>
-      <body style="font-family: Arial; padding: 40px; background: #0a0a1a; color: #e0e0e0;">
-        <h1>❌ View Not Found</h1>
-        <p>View: ${viewName}</p>
-        <p>Path: ${viewPath}</p>
-        <p>Directory: ${path.dirname(viewPath)}</p>
-        <p>Views directory exists: ${fs.existsSync(path.dirname(viewPath))}</p>
-      </body>
-      </html>
-    `);
+    console.error(`❌ File not found: ${viewPath}`);
+    return res.status(404).send(`<h1>View not found</h1><p>${viewName}</p>`);
   }
 
-  try {
-    let html = fs.readFileSync(viewPath, 'utf8');
-    console.log(`✅ View loaded (${html.length} bytes)`);
-    
-    // Replace template variables
-    Object.entries(data).forEach(([key, value]) => {
-      html = html.replace(new RegExp(`{{${key}}}`, 'g'), value);
-    });
-
-    res.setHeader('Content-Type', 'text/html');
-    res.send(html);
-  } catch (error) {
-    console.error(`❌ Error rendering view ${viewName}:`, error);
-    res.status(500).send(`
-      <!DOCTYPE html>
-      <html>
-      <head><title>Error</title></head>
-      <body style="font-family: Arial; padding: 40px; background: #0a0a1a; color: #e0e0e0;">
-        <h1>❌ Error Rendering View</h1>
-        <pre>${error.stack}</pre>
-      </body>
-      </html>
-    `);
-  }
+  const html = fs.readFileSync(viewPath, 'utf8');
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
 }
 
 // Test route
@@ -60,12 +26,11 @@ router.get('/test', (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html>
-    <head><title>Test Page</title></head>
-    <body style="font-family: Arial; padding: 40px; background: #0a0a1a; color: #e0e0e0;">
-      <h1>✅ View System Test Page</h1>
-      <p>If you can see this, the view system is working!</p>
-      <p>Current time: ${new Date().toISOString()}</p>
-      <p>Views directory: ${path.join(__dirname, '..', 'views')}</p>
+    <head><title>Test</title></head>
+    <body style="font-family: Arial; padding: 40px; background: #1a1a2e; color: #fff;">
+      <h1 style="color: #6c5ce7;">✅ View System Working!</h1>
+      <p>If you see this, the server is working correctly.</p>
+      <p>Time: ${new Date().toISOString()}</p>
     </body>
     </html>
   `);
