@@ -6,6 +6,65 @@
     <title>Scripts - AuraHub</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/public/css/style.css">
+    <style>
+        /* Additional styles for loader modal */
+        .loader-code {
+            background: var(--bg-primary);
+            padding: 16px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 300px;
+            overflow-y: auto;
+            color: var(--text-primary);
+            border: 1px solid var(--border-glass);
+            margin: 12px 0;
+        }
+        .loader-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 12px 0;
+        }
+        .loader-info-item {
+            background: var(--bg-primary);
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-glass);
+        }
+        .loader-info-item label {
+            display: block;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+        .loader-info-item value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .copy-btn {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: var(--transition);
+        }
+        .copy-btn:hover {
+            background: var(--primary-dark);
+            transform: scale(1.02);
+        }
+        .copy-btn.copied {
+            background: var(--secondary);
+        }
+        .modal-body {
+            padding: 24px;
+        }
+    </style>
 </head>
 <body>
     <aside class="sidebar">
@@ -133,21 +192,62 @@
         </div>
     </div>
 
+    <!-- Loader Result Modal -->
+    <div id="loaderModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center;">
+        <div class="modal-glass" style="max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--border-glass);">
+                <h3><i class="fas fa-link" style="color: var(--primary);"></i> Loader Generated</h3>
+                <button onclick="closeLoaderModal()" style="background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer;">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="loader-info">
+                    <div class="loader-info-item">
+                        <label>Loader ID</label>
+                        <value id="loaderIdDisplay">-</value>
+                    </div>
+                    <div class="loader-info-item">
+                        <label>Secret</label>
+                        <value id="secretDisplay">-</value>
+                    </div>
+                    <div class="loader-info-item">
+                        <label>Version</label>
+                        <value id="versionDisplay">-</value>
+                    </div>
+                    <div class="loader-info-item">
+                        <label>Script</label>
+                        <value id="scriptNameDisplay">-</value>
+                    </div>
+                </div>
+                <div style="margin-top: 12px;">
+                    <label style="display: block; margin-bottom: 4px; color: var(--text-secondary);">Loader Code (Copy and paste into your Lua script)</label>
+                    <div class="loader-code" id="loaderCodeDisplay">Loading...</div>
+                    <button class="copy-btn" onclick="copyLoaderCode()" id="copyBtn">
+                        <i class="fas fa-copy"></i> Copy Code
+                    </button>
+                </div>
+                <div style="margin-top: 16px; display: flex; gap: 12px; justify-content: flex-end;">
+                    <button class="btn-glass" onclick="closeLoaderModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // =============================================
-        // BỎ TOKEN - GỌI API TRỰC TIẾP
+        // SCRIPT MANAGEMENT - NO AUTH REQUIRED
         // =============================================
         
         let currentPage = 1;
         const limit = 10;
+        let currentLoaderData = null;
 
+        // Load scripts
         async function loadScripts(page = 1, search = '') {
             const url = `/api/scripts?page=${page}&limit=${limit}${search ? `&search=${search}` : ''}`;
             
             try {
                 console.log('📥 Fetching scripts from:', url);
                 
-                // KHÔNG CẦN TOKEN
                 const response = await fetch(url);
                 console.log('📥 Response status:', response.status);
                 
@@ -177,6 +277,7 @@
             }
         }
 
+        // Render scripts table
         function renderScripts(scripts) {
             const tbody = document.getElementById('scriptsList');
             tbody.innerHTML = '';
@@ -201,15 +302,16 @@
                     <td><span class="badge-status ${script.enabled ? 'active' : 'inactive'}">${script.enabled ? 'Active' : 'Inactive'}</span></td>
                     <td>${new Date(script.createdAt).toLocaleDateString()}</td>
                     <td>
-                        <button class="btn-glass" style="padding: 4px 8px;" onclick="editScript('${script.uuid}')"><i class="fas fa-edit"></i></button>
-                        <button class="btn-glass" style="padding: 4px 8px; color: var(--danger);" onclick="deleteScript('${script.uuid}')"><i class="fas fa-trash"></i></button>
-                        <button class="btn-glass" style="padding: 4px 8px;" onclick="generateLoader('${script.uuid}')"><i class="fas fa-link"></i></button>
+                        <button class="btn-glass" style="padding: 4px 8px;" onclick="editScript('${script.uuid}')" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button class="btn-glass" style="padding: 4px 8px; color: var(--danger);" onclick="deleteScript('${script.uuid}')" title="Delete"><i class="fas fa-trash"></i></button>
+                        <button class="btn-glass" style="padding: 4px 8px; color: var(--primary);" onclick="generateLoader('${script.uuid}')" title="Generate Loader"><i class="fas fa-link"></i></button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
         }
 
+        // Pagination
         function updatePagination(pagination) {
             const container = document.getElementById('pagination');
             container.innerHTML = '';
@@ -228,6 +330,7 @@
             }
         }
 
+        // Create Script Modal
         function openCreateScript() {
             document.getElementById('createScriptModal').style.display = 'flex';
         }
@@ -243,7 +346,6 @@
             const data = Object.fromEntries(formData);
             
             try {
-                // KHÔNG CẦN TOKEN
                 const response = await fetch('/api/scripts', {
                     method: 'POST',
                     headers: {
@@ -261,10 +363,11 @@
                     alert(result.error || 'Failed to create script');
                 }
             } catch (error) {
-                alert('Error creating script');
+                alert('Error creating script: ' + error.message);
             }
         });
 
+        // Search
         document.getElementById('scriptSearch').addEventListener('input', (e) => {
             clearTimeout(this.searchTimeout);
             this.searchTimeout = setTimeout(() => {
@@ -272,6 +375,7 @@
             }, 300);
         });
 
+        // Delete Script
         async function deleteScript(uuid) {
             if (!confirm('Are you sure you want to delete this script?')) return;
             
@@ -288,11 +392,23 @@
                     alert(result.error || 'Failed to delete script');
                 }
             } catch (error) {
-                alert('Error deleting script');
+                alert('Error deleting script: ' + error.message);
             }
         }
 
+        // =============================================
+        // GENERATE LOADER - NO AUTH REQUIRED
+        // =============================================
+
         async function generateLoader(uuid) {
+            console.log('🔧 Generating loader for script:', uuid);
+            
+            // Show loading state
+            const loaderModal = document.getElementById('loaderModal');
+            const loaderCodeDisplay = document.getElementById('loaderCodeDisplay');
+            loaderCodeDisplay.textContent = '⏳ Generating loader...';
+            loaderModal.style.display = 'flex';
+            
             try {
                 const response = await fetch('/loader/generate', {
                     method: 'POST',
@@ -303,29 +419,91 @@
                 });
                 
                 const result = await response.json();
+                console.log('📥 Loader response:', result);
+                
                 if (result.success) {
-                    alert(`Loader generated!\nLoaderID: ${result.data.loaderId}\nSecret: ${result.data.secret}`);
+                    currentLoaderData = result.data;
+                    
+                    // Display loader info
+                    document.getElementById('loaderIdDisplay').textContent = result.data.loaderId;
+                    document.getElementById('secretDisplay').textContent = result.data.secret;
+                    document.getElementById('versionDisplay').textContent = result.data.version;
+                    document.getElementById('scriptNameDisplay').textContent = result.data.scriptName || 'Unknown';
+                    document.getElementById('loaderCodeDisplay').textContent = result.data.loaderCode;
+                    
+                    // Reset copy button
+                    const copyBtn = document.getElementById('copyBtn');
+                    copyBtn.textContent = '<i class="fas fa-copy"></i> Copy Code';
+                    copyBtn.className = 'copy-btn';
                 } else {
-                    alert(result.error || 'Failed to generate loader');
+                    loaderCodeDisplay.textContent = '❌ Error: ' + (result.error || 'Failed to generate loader');
                 }
             } catch (error) {
-                alert('Error generating loader');
+                console.error('❌ Error generating loader:', error);
+                loaderCodeDisplay.textContent = '❌ Error: ' + error.message;
             }
         }
 
-        function editScript(uuid) {
-            alert('Edit functionality coming soon!');
+        // Copy loader code
+        function copyLoaderCode() {
+            const code = document.getElementById('loaderCodeDisplay').textContent;
+            const copyBtn = document.getElementById('copyBtn');
+            
+            if (!code || code.startsWith('❌') || code.startsWith('⏳')) {
+                alert('No valid loader code to copy');
+                return;
+            }
+            
+            navigator.clipboard.writeText(code).then(() => {
+                copyBtn.textContent = '<i class="fas fa-check"></i> Copied!';
+                copyBtn.className = 'copy-btn copied';
+                setTimeout(() => {
+                    copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copy Code';
+                    copyBtn.className = 'copy-btn';
+                }, 3000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                // Fallback
+                const textarea = document.createElement('textarea');
+                textarea.value = code;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('Code copied to clipboard!');
+            });
         }
 
-        // Load initial scripts
-        loadScripts();
+        // Close loader modal
+        function closeLoaderModal() {
+            document.getElementById('loaderModal').style.display = 'none';
+        }
 
-        // Close modal on outside click
+        // Edit script (placeholder)
+        function editScript(uuid) {
+            alert('Edit functionality coming soon!\nScript UUID: ' + uuid);
+        }
+
+        // Close modals on outside click
         document.getElementById('createScriptModal').addEventListener('click', (e) => {
             if (e.target === e.currentTarget) {
                 closeCreateScript();
             }
         });
+        
+        document.getElementById('loaderModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                closeLoaderModal();
+            }
+        });
+
+        // =============================================
+        // INIT - Load scripts on page load
+        // =============================================
+
+        loadScripts();
+
+        console.log('📄 Scripts page loaded successfully');
     </script>
 </body>
 </html>
