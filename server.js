@@ -14,7 +14,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 // ============================================================
-// MIDDLEWARE
+// MIDDLEWARE - FIXED CORS
 // ============================================================
 
 app.use(compression());
@@ -23,25 +23,32 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
+// CORS configuration - QUAN TRỌNG
 app.use(cors({
   origin: '*',
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 app.use(morgan('combined'));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Session configuration - FIXED
 app.use(session({
   secret: process.env.SESSION_SECRET || 'default_secret_change_me',
   resave: false,
   saveUninitialized: true,
   cookie: { 
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000
+    maxAge: 24 * 60 * 60 * 1000,
+    httpOnly: true,
+    sameSite: 'lax'
   }
 }));
 
+// Static files
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/storage', express.static(path.join(__dirname, 'storage')));
 
@@ -52,6 +59,7 @@ app.use('/storage', express.static(path.join(__dirname, 'storage')));
 app.use((req, res, next) => {
   console.log(`📨 ${req.method} ${req.url}`);
   console.log(`  Session token: ${req.session?.token ? 'Present' : 'None'}`);
+  console.log(`  Headers:`, req.headers);
   next();
 });
 
@@ -64,11 +72,11 @@ const db = require('./database/database');
 console.log('✅ Database initialized');
 
 // ============================================================
-// AUTHENTICATION MIDDLEWARE - FIXED
+// AUTHENTICATION MIDDLEWARE
 // ============================================================
 
 const isAuthenticated = (req, res, next) => {
-  // LUÔN LUÔN BỎ QUA CHO CÁC ROUTE CÔNG KHAI
+  // Public routes
   const publicRoutes = ['/login', '/register', '/auth/login', '/auth/register', '/auth/logout', '/test'];
   if (publicRoutes.includes(req.path) || req.path.startsWith('/auth/')) {
     console.log(`🔓 Public route: ${req.path}`);
@@ -84,7 +92,7 @@ const isAuthenticated = (req, res, next) => {
   if (!token) {
     console.log(`❌ No token, redirecting to /login`);
     if (req.path.startsWith('/api/')) {
-      return res.status(401).json({ error: 'Authentication required' });
+      return res.status(401).json({ success: false, error: 'Authentication required' });
     }
     return res.redirect('/login');
   }
@@ -92,17 +100,15 @@ const isAuthenticated = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
-    // Cập nhật session
     req.session.token = token;
     req.session.user = decoded;
     console.log(`✅ Authenticated: ${decoded.username}`);
     next();
   } catch (error) {
     console.log(`❌ Invalid token: ${error.message}`);
-    // Xóa token không hợp lệ
     req.session.token = null;
     if (req.path.startsWith('/api/')) {
-      return res.status(401).json({ error: 'Invalid token' });
+      return res.status(401).json({ success: false, error: 'Invalid token' });
     }
     return res.redirect('/login');
   }
@@ -111,10 +117,10 @@ const isAuthenticated = (req, res, next) => {
 const requireRole = (roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
+      return res.status(401).json({ success: false, error: 'Authentication required' });
     }
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+      return res.status(403).json({ success: false, error: 'Insufficient permissions' });
     }
     next();
   };
@@ -126,7 +132,7 @@ const requireRole = (roles) => {
 
 console.log('📄 Loading routes...');
 
-// 1. AUTH ROUTES (public - KHÔNG CẦN AUTH)
+// 1. AUTH ROUTES (public)
 const authRoutes = require('./routes/auth');
 app.use('/auth', authRoutes);
 
@@ -151,22 +157,19 @@ app.use('/users', userRoutes);
 // 3. VIEW ROUTES
 const viewRoutes = require('./routes/views');
 
-// Route login - KHÔNG CẦN AUTH
 app.get('/login', (req, res) => {
-  // Nếu đã có session token, redirect về dashboard
+  // Nếu đã có session token hợp lệ, redirect về dashboard
   if (req.session?.token) {
     try {
       jwt.verify(req.session.token, process.env.JWT_SECRET);
       console.log('✅ Session token valid, redirecting to dashboard');
       return res.redirect('/');
     } catch (error) {
-      // Token không hợp lệ, xóa session
       req.session.token = null;
       console.log('❌ Session token invalid, clearing session');
     }
   }
   
-  // Render login page
   const viewPath = path.join(__dirname, 'views', 'login.html');
   const fs = require('fs');
   if (fs.existsSync(viewPath)) {
@@ -185,7 +188,6 @@ app.get('/login', (req, res) => {
   }
 });
 
-// Route register - KHÔNG CẦN AUTH
 app.get('/register', (req, res) => {
   const viewPath = path.join(__dirname, 'views', 'register.html');
   const fs = require('fs');
@@ -205,13 +207,12 @@ app.get('/register', (req, res) => {
   }
 });
 
-// Protected view routes (cần auth)
+// Protected view routes
 const protectedViewRoutes = ['/', '/dashboard', '/scripts', '/loaders', '/users', '/logs', '/settings', '/admin'];
 app.use(protectedViewRoutes, isAuthenticated);
 
 app.use('/', viewRoutes);
 
-// 4. LOGOUT
 app.get('/logout', (req, res) => {
   req.session.destroy();
   res.redirect('/login');
@@ -224,7 +225,7 @@ app.get('/logout', (req, res) => {
 app.use((req, res) => {
   console.log(`⚠️ 404: ${req.method} ${req.url}`);
   if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
-    return res.status(404).json({ error: 'API endpoint not found' });
+    return res.status(404).json({ success: false, error: 'API endpoint not found' });
   }
   res.status(404).send(`
     <!DOCTYPE html>
@@ -243,6 +244,7 @@ app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err.stack);
   if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
     return res.status(500).json({ 
+      success: false,
       error: 'Internal server error',
       message: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
@@ -269,20 +271,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 AuraHub Loader Platform');
   console.log(`📍 Running on http://0.0.0.0:${PORT}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('========================================');
-  console.log('📋 Available routes:');
-  console.log('  PUBLIC:');
-  console.log('  - /login          Login page (no auth)');
-  console.log('  - /register       Register page (no auth)');
-  console.log('  - /auth/login     Login API (POST, no auth)');
-  console.log('  - /auth/register  Register API (POST, no auth)');
-  console.log('  PROTECTED:');
-  console.log('  - /               Dashboard (requires auth)');
-  console.log('  - /scripts        Scripts Manager (requires auth)');
-  console.log('  - /loaders        Loaders Manager (requires auth)');
-  console.log('  - /users          Users Manager (requires auth)');
-  console.log('  - /logs           Logs Viewer (requires auth)');
-  console.log('  - /settings       Settings (requires auth)');
-  console.log('  - /admin          Admin Panel (requires auth)');
   console.log('========================================');
 });
