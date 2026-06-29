@@ -7,131 +7,19 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/public/css/style.css">
     <style>
-        .login-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background: var(--bg-primary);
-        }
-        .login-box {
-            max-width: 400px;
-            width: 100%;
-            padding: 40px;
-        }
-        .login-box h1 {
-            text-align: center;
-            margin-bottom: 8px;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-size: 32px;
-        }
-        .login-box .subtitle {
-            text-align: center;
-            color: var(--text-secondary);
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-        .login-box .form-group {
-            margin-bottom: 16px;
-        }
-        .login-box label {
-            display: block;
-            margin-bottom: 4px;
-            color: var(--text-secondary);
-            font-size: 13px;
-            font-weight: 500;
-        }
-        .login-box input {
-            width: 100%;
-            padding: 10px 14px;
-            background: var(--bg-primary);
-            border: 1px solid var(--border-glass);
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-size: 14px;
-        }
-        .login-box input:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-        .login-box .btn-login {
-            width: 100%;
+        /* ... giữ nguyên styles ... */
+        .debug-info {
+            margin-top: 16px;
             padding: 12px;
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            color: #fff;
-            border: none;
+            background: rgba(0,0,0,0.3);
             border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: var(--transition);
-            margin-top: 4px;
-        }
-        .login-box .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 20px rgba(108, 92, 231, 0.4);
-        }
-        .login-box .btn-login:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-        .login-box .register-link {
-            text-align: center;
-            margin-top: 20px;
+            font-size: 12px;
             color: var(--text-secondary);
-            font-size: 14px;
-        }
-        .login-box .register-link a {
-            color: var(--primary);
-            text-decoration: none;
-            font-weight: 500;
-        }
-        .login-box .register-link a:hover {
-            text-decoration: underline;
-        }
-        .error-message {
-            color: var(--danger);
-            text-align: center;
-            margin-bottom: 16px;
             display: none;
-            padding: 10px;
-            background: rgba(225, 112, 85, 0.1);
-            border-radius: 8px;
-            border: 1px solid rgba(225, 112, 85, 0.2);
+            word-break: break-all;
         }
-        .success-message {
-            color: var(--secondary);
-            text-align: center;
-            margin-bottom: 16px;
-            display: none;
-            padding: 10px;
-            background: rgba(0, 184, 148, 0.1);
-            border-radius: 8px;
-            border: 1px solid rgba(0, 184, 148, 0.2);
-        }
-        .login-box .icon-input {
-            position: relative;
-        }
-        .login-box .icon-input i {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-secondary);
-            opacity: 0.5;
-        }
-        .login-box .icon-input input {
-            padding-left: 40px;
-        }
-        @media (max-width: 480px) {
-            .login-box {
-                padding: 24px;
-            }
-            .login-box h1 {
-                font-size: 24px;
-            }
+        .debug-info.show {
+            display: block;
         }
     </style>
 </head>
@@ -145,7 +33,7 @@
             <div id="successMessage" class="success-message"></div>
             
             <!-- ============================================= -->
-            <!-- FORM ACTION: Gửi trực tiếp đến /auth/login   -->
+            <!-- CÁCH 1: Dùng FORM ACTION (Không dùng fetch)  -->
             <!-- ============================================= -->
             <form id="loginForm" action="/auth/login" method="POST">
                 <div class="form-group">
@@ -170,24 +58,38 @@
             <div class="register-link">
                 Don't have an account? <a href="/register">Register here</a>
             </div>
+            
+            <!-- Debug Info -->
+            <div id="debugInfo" class="debug-info"></div>
         </div>
     </div>
 
     <script>
         console.log('📄 Login page loaded');
         
-        // Ngăn form submit mặc định và dùng AJAX
+        // =============================================
+        // CÁCH 1: FORM ACTION - Không dùng fetch
+        // =============================================
+        // Form sẽ submit trực tiếp đến /auth/login
+        // Server sẽ redirect về / nếu thành công
+        
+        // =============================================
+        // CÁCH 2: Dùng fetch (nếu form action không hoạt động)
+        // =============================================
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
+            // Bỏ comment dòng dưới nếu muốn dùng fetch thay vì form action
+            // e.preventDefault();
             
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
             const errorEl = document.getElementById('errorMessage');
             const successEl = document.getElementById('successMessage');
+            const debugEl = document.getElementById('debugInfo');
             const submitBtn = document.getElementById('loginBtn');
             
             errorEl.style.display = 'none';
             successEl.style.display = 'none';
+            debugEl.classList.remove('show');
             
             if (!username || !password) {
                 errorEl.textContent = 'Please enter username and password';
@@ -200,6 +102,17 @@
             
             try {
                 console.log('🔐 Attempting login for:', username);
+                debugEl.textContent = `⏳ Sending request to /auth/login...`;
+                debugEl.classList.add('show');
+                
+                // Kiểm tra kết nối mạng trước
+                const online = navigator.onLine;
+                console.log(`📶 Network status: ${online ? 'Online' : 'Offline'}`);
+                debugEl.textContent += `\n📶 Network: ${online ? 'Online' : 'Offline'}`;
+                
+                if (!online) {
+                    throw new Error('No internet connection');
+                }
                 
                 const response = await fetch('/auth/login', {
                     method: 'POST',
@@ -209,8 +122,15 @@
                     body: JSON.stringify({ username, password })
                 });
                 
+                debugEl.textContent += `\n📥 Response status: ${response.status} ${response.statusText}`;
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
                 console.log('📥 Login response:', data);
+                debugEl.textContent += `\n📦 Response data: ${JSON.stringify(data, null, 2)}`;
                 
                 if (data.success) {
                     // Lưu token
@@ -220,20 +140,13 @@
                     successEl.textContent = '✅ Login successful! Redirecting...';
                     successEl.style.display = 'block';
                     
-                    // =============================================
-                    // CÁCH 1: Dùng meta refresh
-                    // =============================================
-                    const meta = document.createElement('meta');
-                    meta.httpEquiv = 'refresh';
-                    meta.content = '0;url=/';
-                    document.head.appendChild(meta);
+                    debugEl.textContent += `\n🚀 Redirecting to: ${data.redirect || '/'}`;
+                    debugEl.classList.add('show');
                     
-                    // =============================================
-                    // CÁCH 2: Dùng window.location (fallback)
-                    // =============================================
+                    // Redirect
                     setTimeout(() => {
-                        window.location.href = '/';
-                    }, 100);
+                        window.location.href = data.redirect || '/';
+                    }, 500);
                     
                 } else {
                     errorEl.textContent = data.error || 'Login failed';
@@ -243,7 +156,10 @@
                 }
             } catch (error) {
                 console.error('❌ Login error:', error);
-                errorEl.textContent = 'Network error. Please try again.';
+                debugEl.textContent += `\n❌ Error: ${error.message}`;
+                debugEl.classList.add('show');
+                
+                errorEl.textContent = `Network error: ${error.message}`;
                 errorEl.style.display = 'block';
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
