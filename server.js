@@ -38,31 +38,29 @@ const db = require('./database/database');
 console.log('✅ Database initialized');
 
 // ============================================================
-// ROUTES - QUAN TRỌNG: API TRƯỚC, VIEWS SAU
+// ROUTES - QUAN TRỌNG: ĐÃ SỬA
 // ============================================================
 
 console.log('📄 Loading routes...');
 
-// 1. API ROUTES (always first)
+// 1. API ROUTES - TẤT CẢ ĐỀU CÓ PREFIX /api
 const authRoutes = require('./routes/auth');
 const apiRoutes = require('./routes/api');
 const loaderRoutes = require('./routes/loader');
 const cdnRoutes = require('./routes/cdn');
 const adminRoutes = require('./routes/admin');
-const scriptRoutes = require('./routes/scripts');
 const userRoutes = require('./routes/users');
 
 app.use('/auth', authRoutes);
-app.use('/api', apiRoutes);
+app.use('/api', apiRoutes);           // API routes
 app.use('/loader', loaderRoutes);
 app.use('/cdn', cdnRoutes);
 app.use('/admin', adminRoutes);
-app.use('/scripts', scriptRoutes);
 app.use('/users', userRoutes);
 
-// 2. VIEW ROUTES (always last)
+// 2. VIEW ROUTES - KHÔNG CÓ PREFIX /api
 const viewRoutes = require('./routes/views');
-app.use('/', viewRoutes);
+app.use('/', viewRoutes);  // SẼ XỬ LÝ /scripts, /dashboard, v.v.
 
 // Error handling
 app.use((err, req, res, next) => {
