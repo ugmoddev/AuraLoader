@@ -6,7 +6,9 @@
     <title>Login - AuraHub</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/public/css/style.css">
-    <!-- Các style giữ nguyên như bạn đã có -->
+    <style>
+        /* ... styles giữ nguyên ... */
+    </style>
 </head>
 <body>
     <div class="login-container">
@@ -82,21 +84,23 @@
                 console.log('📥 Login response:', data);
                 
                 if (data.success) {
-                    // --- Lưu token ---
+                    // Lưu token
                     localStorage.setItem('aurahub_token', data.data.token);
-                    console.log('✅ Token saved successfully.');
+                    console.log('✅ Token saved');
                     
-                    // --- Hiển thị thông báo thành công ---
+                    // =============================================
+                    // QUAN TRỌNG: Redirect theo URL từ server
+                    // =============================================
+                    const redirectUrl = data.redirect || '/';
+                    console.log('🚀 Redirecting to:', redirectUrl);
+                    
                     successEl.textContent = '✅ Login successful! Redirecting...';
                     successEl.style.display = 'block';
                     
-                    // --- ĐẢM BẢO CHUYỂN HƯỚNG ---
-                    // Sử dụng window.location.replace để tránh lưu trang login vào lịch sử
-                    // và đảm bảo chuyển hướng
-                    setTimeout(() => {
-                        console.log('🚀 Redirecting to dashboard...');
-                        window.location.replace('/');
-                    }, 500);
+                    // Force redirect
+                    setTimeout(function() {
+                        window.location.href = redirectUrl;
+                    }, 300);
                     
                 } else {
                     errorEl.textContent = data.error || 'Login failed';
@@ -106,14 +110,14 @@
                 }
             } catch (error) {
                 console.error('❌ Login error:', error);
-                errorEl.textContent = 'Network error. Please try again.';
+                errorEl.textContent = 'Network error: ' + error.message;
                 errorEl.style.display = 'block';
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
             }
         });
         
-        // Hỗ trợ phím Enter
+        // Enter key support
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 const form = document.getElementById('loginForm');
