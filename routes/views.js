@@ -34,7 +34,7 @@ router.get('/test', (req, res) => {
   `);
 });
 
-// Main routes
+// Main routes - KHÔNG CÓ REDIRECT VÔ HẠN
 router.get('/', (req, res) => renderView(res, 'dashboard'));
 router.get('/dashboard', (req, res) => renderView(res, 'dashboard'));
 router.get('/scripts', (req, res) => renderView(res, 'scripts'));
@@ -43,32 +43,6 @@ router.get('/users', (req, res) => renderView(res, 'users'));
 router.get('/logs', (req, res) => renderView(res, 'logs'));
 router.get('/settings', (req, res) => renderView(res, 'settings'));
 router.get('/admin', (req, res) => renderView(res, 'admin'));
-
-// ============================================================
-// THÊM ROUTE LOGIN VÀ REGISTER
-// ============================================================
-
-router.get('/login', (req, res) => {
-  // Kiểm tra nếu đã đăng nhập thì chuyển về dashboard
-  const token = req.session?.token || req.headers.authorization?.split(' ')[1];
-  if (token) {
-    return res.redirect('/');
-  }
-  renderView(res, 'login');
-});
-
-router.get('/register', (req, res) => {
-  renderView(res, 'register');
-});
-
-// ============================================================
-// LOGOUT
-// ============================================================
-
-router.get('/logout', (req, res) => {
-  req.session.destroy();
-  res.redirect('/login');
-});
 
 console.log('✅ Views routes registered:');
 console.log('  - /');
@@ -79,8 +53,6 @@ console.log('  - /users');
 console.log('  - /logs');
 console.log('  - /settings');
 console.log('  - /admin');
-console.log('  - /login');      // THÊM
-console.log('  - /register');   // THÊM
 console.log('  - /test');
 
 module.exports = router;
