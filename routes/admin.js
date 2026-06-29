@@ -5,7 +5,6 @@ const auth = require('../middlewares/auth');
 const cache = require('../middlewares/cache');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 
 // Admin middleware
 router.use(auth.authenticate);
@@ -59,161 +58,46 @@ router.post('/cache/clear', async (req, res) => {
   }
 });
 
-// Database backup
-router.post('/backup', async (req, res) => {
+// API Keys
+router.post('/apikeys', async (req, res) => {
   try {
-    const dbPath = path.join(__dirname, '..', 'database', 'database.db');
-    const backupDir = path.join(__dirname, '..', 'storage', 'backups');
-    
-    if (!fs.existsSync(backupDir)) {
-      fs.mkdirSync(backupDir, { recursive: true });
-    }
-
-    const backupName = `backup_${Date.now()}.db`;
-    const backupPath = path.join(backupDir, backupName);
-    
-    fs.copyFileSync(dbPath, backupPath);
-
-    res.json({
-      success: true,
-      data: { backupName, backupPath },
-      message: 'Backup created successfully'
-    });
-  } catch (error) {
-    console.error('Error creating backup:', error);
-    res.status(500).json({ error: 'Failed to create backup' });
-  }
-});
-
-// Get backup list
-router.get('/backups', async (req, res) => {
-  try {
-    const backupDir = path.join(__dirname, '..', 'storage', 'backups');
-    
-    if (!fs.existsSync(backupDir)) {
-      return res.json({ success: true, data: [] });
-    }
-
-    const files = fs.readdirSync(backupDir);
-    const backups = files
-      .filter(f => f.endsWith('.db'))
-      .map(f => {
-        const stats = fs.statSync(path.join(backupDir, f));
-        return {
-          name: f,
-          size: stats.size,
-          created: stats.birthtime
-        };
-      })
-      .sort((a, b) => b.created - a.created);
-
-    res.json({ success: true, data: backups });
-  } catch (error) {
-    console.error('Error fetching backups:', error);
-    res.status(500).json({ error: 'Failed to fetch backups' });
-  }
-});
-
-// Restore backup
-router.post('/restore/:backupName', async (req, res) => {
-  try {
-    const backupName = req.params.backupName;
-    const backupPath = path.join(__dirname, '..', 'storage', 'backups', backupName);
-    const dbPath = path.join(__dirname, '..', 'database', 'database.db');
-
-    if (!fs.existsSync(backupPath)) {
-      return res.status(404).json({ error: 'Backup not found' });
-    }
-
-    fs.copyFileSync(backupPath, dbPath);
-
-    res.json({
-      success: true,
-      message: 'Database restored successfully'
-    });
-  } catch (error) {
-    console.error('Error restoring backup:', error);
-    res.status(500).json({ error: 'Failed to restore backup' });
-  }
-});
-
-// Get system logs
-router.get('/logs', async (req, res) => {
-  try {
-    const logsDir = path.join(__dirname, '..', 'storage', 'logs');
-    
-    if (!fs.existsSync(logsDir)) {
-      return res.json({ success: true, data: [] });
-    }
-
-    const files = fs.readdirSync(logsDir);
-    const logs = files
-      .filter(f => f.endsWith('.log'))
-      .map(f => {
-        const stats = fs.statSync(path.join(logsDir, f));
-        return {
-          name: f,
-          size: stats.size,
-          created: stats.birthtime,
-          modified: stats.mtime
-        };
-      })
-      .sort((a, b) => b.created - a.created);
-
-    res.json({ success: true, data: logs });
-  } catch (error) {
-    console.error('Error fetching system logs:', error);
-    res.status(500).json({ error: 'Failed to fetch system logs' });
-  }
-});
-
-// Get specific log
-router.get('/logs/:filename', async (req, res) => {
-  try {
-    const filename = req.params.filename;
-    const logPath = path.join(__dirname, '..', 'storage', 'logs', filename);
-
-    if (!fs.existsSync(logPath)) {
-      return res.status(404).json({ error: 'Log file not found' });
-    }
-
-    const content = fs.readFileSync(logPath, 'utf8');
-    const lines = content.split('\n').filter(line => line.trim());
-    const lastLines = lines.slice(-1000); // Last 1000 lines
-
-    res.json({
-      success: true,
-      data: {
-        filename,
-        size: fs.statSync(logPath).size,
-        content: lastLines.join('\n'),
-        totalLines: lines.length
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching log:', error);
-    res.status(500).json({ error: 'Failed to fetch log' });
-  }
-});
-
-// Maintenance mode
-router.post('/maintenance', async (req, res) => {
-  try {
-    const { enabled } = req.body;
-    const value = enabled ? 'true' : 'false';
+    const { owner, permissions } = req.body;
+    const crypto = require('crypto');
+    const apiKey = crypto.randomBytes(32).toString('hex');
 
     await db.run(`
-      INSERT OR REPLACE INTO settings (key, value)
-      VALUES ('maintenance', ?)
-    `, [value]);
+      INSERT INTO apikeys (key, owner, permissions)
+      VALUES (?, ?, ?)
+    `, [apiKey, owner || req.user.username, permissions || 'read']);
 
-    res.json({
+    res.status(201).json({
       success: true,
-      message: `Maintenance mode ${enabled ? 'enabled' : 'disabled'}`
+      data: { key: apiKey, owner, permissions },
+      message: 'API Key created successfully'
     });
   } catch (error) {
-    console.error('Error toggling maintenance:', error);
-    res.status(500).json({ error: 'Failed to toggle maintenance mode' });
+    console.error('Error creating API key:', error);
+    res.status(500).json({ error: 'Failed to create API key' });
+  }
+});
+
+router.get('/apikeys', async (req, res) => {
+  try {
+    const keys = await db.query('SELECT * FROM apikeys ORDER BY createdAt DESC');
+    res.json({ success: true, data: keys });
+  } catch (error) {
+    console.error('Error fetching API keys:', error);
+    res.status(500).json({ error: 'Failed to fetch API keys' });
+  }
+});
+
+router.delete('/apikeys/:id', async (req, res) => {
+  try {
+    await db.run('DELETE FROM apikeys WHERE id = ?', [req.params.id]);
+    res.json({ success: true, message: 'API Key deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting API key:', error);
+    res.status(500).json({ error: 'Failed to delete API key' });
   }
 });
 
