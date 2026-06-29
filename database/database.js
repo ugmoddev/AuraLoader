@@ -6,13 +6,22 @@ const bcrypt = require('bcrypt');
 
 class Database {
   constructor() {
-    // Sử dụng đường dẫn tương đối, đảm bảo thư mục database tồn tại
+    // Đảm bảo thư mục database tồn tại
     const dbDir = path.join(__dirname);
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true });
     }
+    
     this.dbPath = path.join(dbDir, 'database.db');
-    this.db = new sqlite3.Database(this.dbPath);
+    console.log(`Database path: ${this.dbPath}`);
+    
+    this.db = new sqlite3.Database(this.dbPath, (err) => {
+      if (err) {
+        console.error('Database connection error:', err);
+      } else {
+        console.log('Database connected successfully');
+      }
+    });
     this.init();
   }
 
@@ -21,7 +30,7 @@ class Database {
   }
 
   createTables() {
-    // Bảng users
+    // Users table
     this.db.run(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,9 +43,11 @@ class Database {
         apiKey TEXT UNIQUE,
         status TEXT DEFAULT 'active'
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Error creating users table:', err);
+    });
 
-    // Bảng scripts
+    // Scripts table
     this.db.run(`
       CREATE TABLE IF NOT EXISTS scripts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,9 +65,11 @@ class Database {
         category TEXT,
         tags TEXT
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Error creating scripts table:', err);
+    });
 
-    // Bảng loaders
+    // Loaders table
     this.db.run(`
       CREATE TABLE IF NOT EXISTS loaders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,9 +83,11 @@ class Database {
         executions INTEGER DEFAULT 0,
         FOREIGN KEY (scriptId) REFERENCES scripts(id)
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Error creating loaders table:', err);
+    });
 
-    // Bảng logs
+    // Logs table
     this.db.run(`
       CREATE TABLE IF NOT EXISTS logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,9 +101,11 @@ class Database {
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (loaderId) REFERENCES loaders(loaderId)
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Error creating logs table:', err);
+    });
 
-    // Bảng apikeys
+    // API Keys table
     this.db.run(`
       CREATE TABLE IF NOT EXISTS apikeys (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,9 +116,11 @@ class Database {
         lastUsed DATETIME,
         status TEXT DEFAULT 'active'
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Error creating apikeys table:', err);
+    });
 
-    // Bảng settings - QUAN TRỌNG: Thêm bảng này để tránh lỗi
+    // Settings table
     this.db.run(`
       CREATE TABLE IF NOT EXISTS settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,7 +136,7 @@ class Database {
       }
     });
 
-    // Bảng script_versions
+    // Script versions table
     this.db.run(`
       CREATE TABLE IF NOT EXISTS script_versions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -128,9 +147,11 @@ class Database {
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (scriptId) REFERENCES scripts(id)
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Error creating script_versions table:', err);
+    });
 
-    // Tạo tài khoản admin mặc định sau khi các bảng được tạo
+    // Tạo tài khoản admin mặc định
     setTimeout(() => {
       this.createAdminUser();
     }, 100);
@@ -147,9 +168,12 @@ class Database {
       this.db.run(`
         INSERT OR IGNORE INTO users (username, password, role, apiKey, email)
         VALUES (?, ?, 'admin', ?, 'admin@aurahub.com')
-      `, [adminUsername, hashedPassword, apiKey]);
+      `, [adminUsername, hashedPassword, apiKey], (err) => {
+        if (err) console.error('Error creating admin user:', err);
+        else console.log('Admin user created successfully');
+      });
     } catch (error) {
-      console.error('Error creating admin user:', error);
+      console.error('Error hashing admin password:', error);
     }
   }
 
@@ -158,8 +182,8 @@ class Database {
       ['siteName', 'AuraHub Loader Platform'],
       ['logo', '/public/img/logo.png'],
       ['theme', 'dark'],
-      ['apiUrl', 'http://localhost:3000/api'],
-      ['cdnUrl', 'http://localhost:3000/cdn'],
+      ['apiUrl', 'https://auraloader.onrender.com/api'],
+      ['cdnUrl', 'https://auraloader.onrender.com/cdn'],
       ['loaderPrefix', 'Aura'],
       ['autoBackup', 'true'],
       ['autoUpdate', 'true'],
@@ -171,11 +195,12 @@ class Database {
       this.db.run(`
         INSERT OR IGNORE INTO settings (key, value)
         VALUES (?, ?)
-      `, [key, value]);
+      `, [key, value], (err) => {
+        if (err) console.error(`Error inserting setting ${key}:`, err);
+      });
     });
   }
 
-  // Các phương thức helper (query, get, run, close) giữ nguyên
   query(sql, params = []) {
     return new Promise((resolve, reject) => {
       this.db.all(sql, params, (err, rows) => {
