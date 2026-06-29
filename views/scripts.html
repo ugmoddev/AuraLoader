@@ -136,32 +136,40 @@
 
         async function loadScripts() {
             try {
+                // SỬA: Gọi đúng API endpoint
                 const response = await fetch('/api/scripts', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
+                console.log('Scripts data:', data);
+                
                 if (data.success) {
                     const tbody = document.getElementById('scriptsList');
                     tbody.innerHTML = '';
-                    data.data.forEach(script => {
-                        tbody.innerHTML += `
-                            <tr>
-                                <td><strong>${script.name}</strong></td>
-                                <td>${script.author || 'Unknown'}</td>
-                                <td>v${script.version}</td>
-                                <td>${script.category || 'general'}</td>
-                                <td><span class="badge-status ${script.enabled ? 'active' : 'inactive'}">${script.enabled ? 'Active' : 'Inactive'}</span></td>
-                                <td>${new Date(script.createdAt).toLocaleDateString()}</td>
-                                <td>
-                                    <button class="btn-glass" style="padding: 4px 8px;" onclick="deleteScript('${script.uuid}')"><i class="fas fa-trash"></i></button>
-                                </td>
-                            </tr>
-                        `;
-                    });
+                    if (data.data.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 40px;">No scripts found</td></tr>`;
+                    } else {
+                        data.data.forEach(script => {
+                            tbody.innerHTML += `
+                                <tr>
+                                    <td><strong>${script.name}</strong></td>
+                                    <td>${script.author || 'Unknown'}</td>
+                                    <td>v${script.version}</td>
+                                    <td>${script.category || 'general'}</td>
+                                    <td><span class="badge-status ${script.enabled ? 'active' : 'inactive'}">${script.enabled ? 'Active' : 'Inactive'}</span></td>
+                                    <td>${new Date(script.createdAt).toLocaleDateString()}</td>
+                                    <td>
+                                        <button class="btn-glass" style="padding: 4px 8px;" onclick="deleteScript('${script.uuid}')"><i class="fas fa-trash"></i></button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    }
                     document.getElementById('scriptsCount').textContent = `Total: ${data.data.length} scripts`;
                 }
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Error loading scripts:', error);
+                document.getElementById('scriptsList').innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 40px; color: red;">Error loading scripts</td></tr>`;
             }
         }
 
@@ -191,7 +199,9 @@
                 if (result.success) {
                     closeCreateScript();
                     loadScripts();
-                    alert('Script created!');
+                    alert('Script created successfully!');
+                } else {
+                    alert(result.error || 'Failed to create script');
                 }
             } catch (error) {
                 alert('Error creating script');
@@ -201,17 +211,28 @@
         async function deleteScript(uuid) {
             if (!confirm('Delete this script?')) return;
             try {
-                await fetch(`/api/scripts/${uuid}`, {
+                const response = await fetch(`/api/scripts/${uuid}`, {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                loadScripts();
+                if (response.ok) {
+                    loadScripts();
+                    alert('Script deleted!');
+                }
             } catch (error) {
                 alert('Error deleting script');
             }
         }
 
+        // Load scripts on page load
         loadScripts();
+
+        // Close modal on outside click
+        document.getElementById('createScriptModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                closeCreateScript();
+            }
+        });
     </script>
 </body>
 </html>
