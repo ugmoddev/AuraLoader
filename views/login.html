@@ -174,14 +174,10 @@
     </div>
 
     <script>
-        // Check if already logged in
-        (function checkAuth() {
-            const token = localStorage.getItem('aurahub_token');
-            if (token) {
-                console.log('🔑 Already logged in, redirecting to dashboard...');
-                window.location.href = '/';
-            }
-        })();
+        // KHÔNG TỰ ĐỘNG REDIRECT Ở ĐÂY
+        // Để server (middleware) xử lý việc redirect
+
+        console.log('📄 Login page loaded');
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -222,15 +218,15 @@
                 console.log('📥 Login response:', data);
                 
                 if (data.success) {
-                    // Save token
+                    // Lưu token
                     localStorage.setItem('aurahub_token', data.data.token);
-                    console.log('✅ Token saved:', data.data.token.substring(0, 20) + '...');
+                    console.log('✅ Token saved');
                     
-                    // Show success message
+                    // Hiển thị success message
                     successEl.textContent = '✅ Login successful! Redirecting...';
                     successEl.style.display = 'block';
                     
-                    // Redirect after short delay
+                    // Redirect bằng JavaScript
                     setTimeout(() => {
                         console.log('🚀 Redirecting to dashboard...');
                         window.location.href = '/';
