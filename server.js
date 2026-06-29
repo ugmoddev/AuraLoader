@@ -8,6 +8,9 @@ const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
 
+// Import database first to ensure tables are created
+const db = require('./database/database');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -22,7 +25,7 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(session({
-  secret: process.env.SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || 'default_secret_change_me',
   resave: false,
   saveUninitialized: true,
   cookie: { secure: process.env.NODE_ENV === 'production' }
