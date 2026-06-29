@@ -57,4 +57,43 @@ router.post('/generate', auth.authenticate, async (req, res) => {
       end
     `;
 
-    res.json
+    res.json({
+      success: true,
+      data: {
+        loaderId,
+        secret,
+        version: loaderVersion,
+        loaderCode,
+        cdnUrl: `${cdnUrl}/init/${loaderId}.lua`
+      },
+      message: 'Loader generated successfully'
+    });
+  } catch (error) {
+    console.error('Error generating loader:', error);
+    res.status(500).json({ error: 'Failed to generate loader' });
+  }
+});
+
+// Get loader info
+router.get('/:id/info', async (req, res) => {
+  try {
+    const loaderId = req.params.id;
+    const loader = await db.get(`
+      SELECT l.*, s.name as scriptName, s.uuid as scriptUuid
+      FROM loaders l
+      LEFT JOIN scripts s ON l.scriptId = s.id
+      WHERE l.loaderId = ? OR l.id = ?
+    `, [loaderId, loaderId]);
+
+    if (!loader) {
+      return res.status(404).json({ error: 'Loader not found' });
+    }
+
+    res.json({ success: true, data: loader });
+  } catch (error) {
+    console.error('Error fetching loader info:', error);
+    res.status(500).json({ error: 'Failed to fetch loader info' });
+  }
+});
+
+module.exports = router;
