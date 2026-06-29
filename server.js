@@ -24,7 +24,7 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
-// CORS
+// CORS - QUAN TRỌNG: Cho phép tất cả origins
 app.use(cors({
   origin: '*',
   credentials: true,
@@ -90,7 +90,8 @@ const isAuthenticated = (req, res, next) => {
     '/auth/login', 
     '/auth/register', 
     '/auth/logout', 
-    '/test'
+    '/test',
+    '/test-html'
   ];
   
   if (publicRoutes.includes(req.path) || req.path.startsWith('/auth/')) {
@@ -142,6 +143,31 @@ const requireRole = (roles) => {
 };
 
 // ============================================================
+// TEST ROUTES (Để kiểm tra kết nối)
+// ============================================================
+
+app.get('/test', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Server is running!',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/test-html', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head><title>Test</title></head>
+    <body style="font-family: Arial; padding: 40px; background: #0a0a1a; color: #e0e0e0;">
+      <h1>✅ Server is running!</h1>
+      <p>Time: ${new Date().toISOString()}</p>
+    </body>
+    </html>
+  `);
+});
+
+// ============================================================
 // ROUTES - QUAN TRỌNG: API TRƯỚC, VIEWS SAU
 // ============================================================
 
@@ -176,6 +202,8 @@ const viewRoutes = require('./routes/views');
 
 // Login page - KHÔNG CẦN AUTH
 app.get('/login', (req, res) => {
+  console.log('🔓 Rendering login page...');
+  
   // Nếu đã có session token hợp lệ, redirect về dashboard
   if (req.session?.token) {
     try {
@@ -191,13 +219,15 @@ app.get('/login', (req, res) => {
   const viewPath = path.join(__dirname, 'views', 'login.html');
   const fs = require('fs');
   if (fs.existsSync(viewPath)) {
+    console.log(`📄 Sending login page from: ${viewPath}`);
     res.sendFile(viewPath);
   } else {
+    console.error(`❌ Login page not found at: ${viewPath}`);
     res.send(`
       <!DOCTYPE html>
       <html>
       <head><title>Login</title></head>
-      <body>
+      <body style="font-family: Arial; padding: 40px; background: #0a0a1a; color: #e0e0e0;">
         <h1>Login Page</h1>
         <p>Please create views/login.html</p>
       </body>
@@ -208,6 +238,7 @@ app.get('/login', (req, res) => {
 
 // Register page - KHÔNG CẦN AUTH
 app.get('/register', (req, res) => {
+  console.log('🔓 Rendering register page...');
   const viewPath = path.join(__dirname, 'views', 'register.html');
   const fs = require('fs');
   if (fs.existsSync(viewPath)) {
@@ -244,6 +275,7 @@ app.use('/', viewRoutes);
 
 // Logout
 app.get('/logout', (req, res) => {
+  console.log('🔓 Logging out...');
   req.session.destroy();
   res.redirect('/login');
 });
@@ -305,6 +337,9 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log('========================================');
   console.log('📋 Available routes:');
+  console.log('  TEST ROUTES:');
+  console.log('  - /test          JSON response');
+  console.log('  - /test-html     HTML response');
   console.log('  PUBLIC (No Auth):');
   console.log('  - /login          Login page');
   console.log('  - /register       Register page');
