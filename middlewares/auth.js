@@ -37,22 +37,6 @@ class AuthMiddleware {
     };
   }
 
-  async checkApiKey(req, res, next) {
-    const apiKey = req.headers['x-api-key'];
-    if (!apiKey) {
-      return res.status(401).json({ error: 'API key required' });
-    }
-
-    const key = await db.get('SELECT * FROM apikeys WHERE key = ? AND status = "active"', [apiKey]);
-    if (!key) {
-      return res.status(401).json({ error: 'Invalid API key' });
-    }
-
-    await db.run('UPDATE apikeys SET lastUsed = CURRENT_TIMESTAMP WHERE key = ?', [apiKey]);
-    req.apiKey = key;
-    next();
-  }
-
   generateToken(user) {
     return jwt.sign(
       { id: user.id, username: user.username, role: user.role },
