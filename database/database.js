@@ -6,7 +6,7 @@ const bcrypt = require('bcrypt');
 
 class Database {
   constructor() {
-    // Đảm bảo thư mục database tồn tại
+    // Ensure database directory exists
     const dbDir = path.join(__dirname);
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true });
@@ -151,7 +151,7 @@ class Database {
       if (err) console.error('Error creating script_versions table:', err);
     });
 
-    // Tạo tài khoản admin mặc định
+    // Create admin user after tables are created
     setTimeout(() => {
       this.createAdminUser();
     }, 100);
