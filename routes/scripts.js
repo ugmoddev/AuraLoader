@@ -2,8 +2,6 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/database');
 const auth = require('../middlewares/auth');
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 
@@ -78,7 +76,6 @@ router.put('/:id', auth.authenticate, auth.requireRole(['admin', 'moderator']), 
       return res.status(404).json({ error: 'Script not found' });
     }
 
-    // Save version history if source changed
     if (source && source !== existing.source) {
       await db.run(`
         INSERT INTO script_versions (scriptId, version, source, changes)
@@ -127,7 +124,6 @@ router.delete('/:id', auth.authenticate, auth.requireRole(['admin']), async (req
       return res.status(404).json({ error: 'Script not found' });
     }
 
-    // Delete related data
     await db.run('DELETE FROM loaders WHERE scriptId = ?', [script.id]);
     await db.run('DELETE FROM script_versions WHERE scriptId = ?', [script.id]);
     await db.run('DELETE FROM scripts WHERE id = ?', [script.id]);
@@ -177,69 +173,6 @@ router.post('/:id/clone', auth.authenticate, auth.requireRole(['admin', 'moderat
   } catch (error) {
     console.error('Error cloning script:', error);
     res.status(500).json({ error: 'Failed to clone script' });
-  }
-});
-
-// Get script versions
-router.get('/:id/versions', async (req, res) => {
-  try {
-    const scriptId = req.params.id;
-    const script = await db.get('SELECT id FROM scripts WHERE id = ? OR uuid = ?', [scriptId, scriptId]);
-
-    if (!script) {
-      return res.status(404).json({ error: 'Script not found' });
-    }
-
-    const versions = await db.query(
-      'SELECT * FROM script_versions WHERE scriptId = ? ORDER BY createdAt DESC',
-      [script.id]
-    );
-
-    res.json({ success: true, data: versions });
-  } catch (error) {
-    console.error('Error fetching versions:', error);
-    res.status(500).json({ error: 'Failed to fetch versions' });
-  }
-});
-
-// Rollback to version
-router.post('/:id/rollback/:versionId', auth.authenticate, auth.requireRole(['admin', 'moderator']), async (req, res) => {
-  try {
-    const scriptId = req.params.id;
-    const versionId = req.params.versionId;
-
-    const script = await db.get('SELECT id FROM scripts WHERE id = ? OR uuid = ?', [scriptId, scriptId]);
-    if (!script) {
-      return res.status(404).json({ error: 'Script not found' });
-    }
-
-    const version = await db.get('SELECT * FROM script_versions WHERE id = ? AND scriptId = ?', [versionId, script.id]);
-    if (!version) {
-      return res.status(404).json({ error: 'Version not found' });
-    }
-
-    // Save current version
-    const current = await db.get('SELECT source, version FROM scripts WHERE id = ?', [script.id]);
-    await db.run(`
-      INSERT INTO script_versions (scriptId, version, source, changes)
-      VALUES (?, ?, ?, ?)
-    `, [script.id, current.version, current.source, 'Pre-rollback backup']);
-
-    // Rollback
-    await db.run(`
-      UPDATE scripts SET source = ?, version = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?
-    `, [version.source, version.version, script.id]);
-
-    const updated = await db.get('SELECT * FROM scripts WHERE id = ?', [script.id]);
-
-    res.json({
-      success: true,
-      data: updated,
-      message: 'Rollback successful'
-    });
-  } catch (error) {
-    console.error('Error rolling back:', error);
-    res.status(500).json({ error: 'Failed to rollback' });
   }
 });
 
