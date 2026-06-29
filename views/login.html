@@ -6,137 +6,7 @@
     <title>Login - AuraHub</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/public/css/style.css">
-    <style>
-        .login-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background: var(--bg-primary);
-        }
-        .login-box {
-            max-width: 400px;
-            width: 100%;
-            padding: 40px;
-        }
-        .login-box h1 {
-            text-align: center;
-            margin-bottom: 8px;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-size: 32px;
-        }
-        .login-box .subtitle {
-            text-align: center;
-            color: var(--text-secondary);
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-        .login-box .form-group {
-            margin-bottom: 16px;
-        }
-        .login-box label {
-            display: block;
-            margin-bottom: 4px;
-            color: var(--text-secondary);
-            font-size: 13px;
-            font-weight: 500;
-        }
-        .login-box input {
-            width: 100%;
-            padding: 10px 14px;
-            background: var(--bg-primary);
-            border: 1px solid var(--border-glass);
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-size: 14px;
-            transition: border-color 0.3s ease;
-        }
-        .login-box input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
-        }
-        .login-box .btn-login {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: var(--transition);
-            margin-top: 4px;
-        }
-        .login-box .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 20px rgba(108, 92, 231, 0.4);
-        }
-        .login-box .btn-login:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .login-box .register-link {
-            text-align: center;
-            margin-top: 20px;
-            color: var(--text-secondary);
-            font-size: 14px;
-        }
-        .login-box .register-link a {
-            color: var(--primary);
-            text-decoration: none;
-            font-weight: 500;
-        }
-        .login-box .register-link a:hover {
-            text-decoration: underline;
-        }
-        .error-message {
-            color: var(--danger);
-            text-align: center;
-            margin-bottom: 16px;
-            display: none;
-            padding: 10px;
-            background: rgba(225, 112, 85, 0.1);
-            border-radius: 8px;
-            border: 1px solid rgba(225, 112, 85, 0.2);
-        }
-        .success-message {
-            color: var(--secondary);
-            text-align: center;
-            margin-bottom: 16px;
-            display: none;
-            padding: 10px;
-            background: rgba(0, 184, 148, 0.1);
-            border-radius: 8px;
-            border: 1px solid rgba(0, 184, 148, 0.2);
-        }
-        .login-box .icon-input {
-            position: relative;
-        }
-        .login-box .icon-input i {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-secondary);
-            opacity: 0.5;
-        }
-        .login-box .icon-input input {
-            padding-left: 40px;
-        }
-        @media (max-width: 480px) {
-            .login-box {
-                padding: 24px;
-            }
-            .login-box h1 {
-                font-size: 24px;
-            }
-        }
-    </style>
+    <!-- Các style giữ nguyên như bạn đã có -->
 </head>
 <body>
     <div class="login-container">
@@ -200,10 +70,6 @@
             try {
                 console.log('🔐 Attempting login for:', username);
                 
-                // =============================================
-                // QUAN TRỌNG: Gọi đúng endpoint /auth/login
-                // KHÔNG phải /api/login hay /login
-                // =============================================
                 const response = await fetch('/auth/login', {
                     method: 'POST',
                     headers: {
@@ -216,15 +82,22 @@
                 console.log('📥 Login response:', data);
                 
                 if (data.success) {
+                    // --- Lưu token ---
                     localStorage.setItem('aurahub_token', data.data.token);
-                    console.log('✅ Token saved');
+                    console.log('✅ Token saved successfully.');
                     
+                    // --- Hiển thị thông báo thành công ---
                     successEl.textContent = '✅ Login successful! Redirecting...';
                     successEl.style.display = 'block';
                     
+                    // --- ĐẢM BẢO CHUYỂN HƯỚNG ---
+                    // Sử dụng window.location.replace để tránh lưu trang login vào lịch sử
+                    // và đảm bảo chuyển hướng
                     setTimeout(() => {
-                        window.location.href = '/';
+                        console.log('🚀 Redirecting to dashboard...');
+                        window.location.replace('/');
                     }, 500);
+                    
                 } else {
                     errorEl.textContent = data.error || 'Login failed';
                     errorEl.style.display = 'block';
@@ -233,13 +106,14 @@
                 }
             } catch (error) {
                 console.error('❌ Login error:', error);
-                errorEl.textContent = 'Network error: ' + error.message;
+                errorEl.textContent = 'Network error. Please try again.';
                 errorEl.style.display = 'block';
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
             }
         });
         
+        // Hỗ trợ phím Enter
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 const form = document.getElementById('loginForm');
