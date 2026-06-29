@@ -5,9 +5,6 @@ const auth = require('../middlewares/auth');
 const logger = require('../middlewares/logger');
 const rateLimit = require('../middlewares/rateLimit');
 const cache = require('../middlewares/cache');
-const encoder = require('../utils/encoder');
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 
 // Get all scripts
@@ -40,7 +37,7 @@ router.get('/scripts', rateLimit.api(), cache.middleware(), async (req, res) => 
     const offset = (page - 1) * limit;
     sql += ' ORDER BY ' + (sort || 'createdAt DESC');
     sql += ' LIMIT ? OFFSET ?';
-    params.push(limit, offset);
+    params.push(parseInt(limit), parseInt(offset));
 
     const scripts = await db.query(sql, params);
 
@@ -182,69 +179,6 @@ router.delete('/scripts/:id', auth.authenticate, auth.requireRole(['admin']), as
   }
 });
 
-// Get script versions
-router.get('/scripts/:id/versions', async (req, res) => {
-  try {
-    const scriptId = req.params.id;
-    const script = await db.get('SELECT id FROM scripts WHERE id = ? OR uuid = ?', [scriptId, scriptId]);
-
-    if (!script) {
-      return res.status(404).json({ error: 'Script not found' });
-    }
-
-    const versions = await db.query(
-      'SELECT * FROM script_versions WHERE scriptId = ? ORDER BY createdAt DESC',
-      [script.id]
-    );
-
-    res.json({ success: true, data: versions });
-  } catch (error) {
-    console.error('Error fetching versions:', error);
-    res.status(500).json({ error: 'Failed to fetch versions' });
-  }
-});
-
-// Rollback to version
-router.post('/scripts/:id/rollback/:versionId', auth.authenticate, auth.requireRole(['admin', 'moderator']), async (req, res) => {
-  try {
-    const scriptId = req.params.id;
-    const versionId = req.params.versionId;
-
-    const script = await db.get('SELECT id FROM scripts WHERE id = ? OR uuid = ?', [scriptId, scriptId]);
-    if (!script) {
-      return res.status(404).json({ error: 'Script not found' });
-    }
-
-    const version = await db.get('SELECT * FROM script_versions WHERE id = ? AND scriptId = ?', [versionId, script.id]);
-    if (!version) {
-      return res.status(404).json({ error: 'Version not found' });
-    }
-
-    // Save current version
-    const current = await db.get('SELECT source, version FROM scripts WHERE id = ?', [script.id]);
-    await db.run(`
-      INSERT INTO script_versions (scriptId, version, source, changes)
-      VALUES (?, ?, ?, ?)
-    `, [script.id, current.version, current.source, 'Pre-rollback backup']);
-
-    // Rollback
-    await db.run(`
-      UPDATE scripts SET source = ?, version = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?
-    `, [version.source, version.version, script.id]);
-
-    const updated = await db.get('SELECT * FROM scripts WHERE id = ?', [script.id]);
-
-    res.json({
-      success: true,
-      data: updated,
-      message: 'Rollback successful'
-    });
-  } catch (error) {
-    console.error('Error rolling back:', error);
-    res.status(500).json({ error: 'Failed to rollback' });
-  }
-});
-
 // Get all loaders
 router.get('/loaders', async (req, res) => {
   try {
@@ -323,63 +257,6 @@ router.post('/loaders', auth.authenticate, auth.requireRole(['admin', 'moderator
   }
 });
 
-// Update loader
-router.put('/loaders/:id', auth.authenticate, auth.requireRole(['admin', 'moderator']), async (req, res) => {
-  try {
-    const loaderId = req.params.id;
-    const { status, version } = req.body;
-
-    const loader = await db.get('SELECT * FROM loaders WHERE loaderId = ? OR id = ?', [loaderId, loaderId]);
-    if (!loader) {
-      return res.status(404).json({ error: 'Loader not found' });
-    }
-
-    await db.run(`
-      UPDATE loaders 
-      SET status = ?, version = ?
-      WHERE id = ?
-    `, [status || loader.status, version || loader.version, loader.id]);
-
-    const updated = await db.get(`
-      SELECT l.*, s.name as scriptName, s.uuid as scriptUuid
-      FROM loaders l
-      LEFT JOIN scripts s ON l.scriptId = s.id
-      WHERE l.id = ?
-    `, [loader.id]);
-
-    res.json({
-      success: true,
-      data: updated,
-      message: 'Loader updated successfully'
-    });
-  } catch (error) {
-    console.error('Error updating loader:', error);
-    res.status(500).json({ error: 'Failed to update loader' });
-  }
-});
-
-// Delete loader
-router.delete('/loaders/:id', auth.authenticate, auth.requireRole(['admin']), async (req, res) => {
-  try {
-    const loaderId = req.params.id;
-    const loader = await db.get('SELECT * FROM loaders WHERE loaderId = ? OR id = ?', [loaderId, loaderId]);
-
-    if (!loader) {
-      return res.status(404).json({ error: 'Loader not found' });
-    }
-
-    await db.run('DELETE FROM loaders WHERE id = ?', [loader.id]);
-
-    res.json({
-      success: true,
-      message: 'Loader deleted successfully'
-    });
-  } catch (error) {
-    console.error('Error deleting loader:', error);
-    res.status(500).json({ error: 'Failed to delete loader' });
-  }
-});
-
 // Get statistics
 router.get('/statistics', async (req, res) => {
   try {
@@ -413,104 +290,41 @@ router.get('/statistics', async (req, res) => {
 router.get('/logs', async (req, res) => {
   try {
     const { loaderId, status, fromDate, toDate, limit = 100 } = req.query;
-    const filters = { loaderId, status, fromDate, toDate };
-    const logs = await logger.getLogs(filters);
-    
+    let sql = 'SELECT * FROM logs WHERE 1=1';
+    const params = [];
+
+    if (loaderId) {
+      sql += ' AND loaderId = ?';
+      params.push(loaderId);
+    }
+
+    if (status) {
+      sql += ' AND status = ?';
+      params.push(status);
+    }
+
+    if (fromDate) {
+      sql += ' AND createdAt >= ?';
+      params.push(fromDate);
+    }
+
+    if (toDate) {
+      sql += ' AND createdAt <= ?';
+      params.push(toDate);
+    }
+
+    sql += ' ORDER BY createdAt DESC LIMIT ?';
+    params.push(parseInt(limit));
+
+    const logs = await db.query(sql, params);
+
     res.json({
       success: true,
-      data: logs.slice(0, parseInt(limit))
+      data: logs
     });
   } catch (error) {
     console.error('Error fetching logs:', error);
     res.status(500).json({ error: 'Failed to fetch logs' });
-  }
-});
-
-// Analytics
-router.get('/analytics', async (req, res) => {
-  try {
-    // Top scripts
-    const topScripts = await db.query(`
-      SELECT s.name, s.uuid, COUNT(l.id) as loaderCount, SUM(l.executions) as totalExecutions
-      FROM scripts s
-      JOIN loaders l ON s.id = l.scriptId
-      GROUP BY s.id
-      ORDER BY totalExecutions DESC
-      LIMIT 10
-    `);
-
-    // Top users
-    const topUsers = await db.query(`
-      SELECT username, COUNT(l.id) as loaderCount
-      FROM users u
-      LEFT JOIN loaders l ON u.id = l.createdBy
-      GROUP BY u.id
-      ORDER BY loaderCount DESC
-      LIMIT 10
-    `);
-
-    // Daily executions (last 30 days)
-    const dailyExecutions = await db.query(`
-      SELECT DATE(createdAt) as date, COUNT(*) as count
-      FROM logs
-      WHERE createdAt >= DATE('now', '-30 days')
-      GROUP BY DATE(createdAt)
-      ORDER BY date
-    `);
-
-    res.json({
-      success: true,
-      data: {
-        topScripts,
-        topUsers,
-        dailyExecutions
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching analytics:', error);
-    res.status(500).json({ error: 'Failed to fetch analytics' });
-  }
-});
-
-// API Keys
-router.post('/apikeys', auth.authenticate, auth.requireRole(['admin']), async (req, res) => {
-  try {
-    const { owner, permissions } = req.body;
-    const apiKey = crypto.randomBytes(32).toString('hex');
-
-    await db.run(`
-      INSERT INTO apikeys (key, owner, permissions)
-      VALUES (?, ?, ?)
-    `, [apiKey, owner || req.user.username, permissions || 'read']);
-
-    res.status(201).json({
-      success: true,
-      data: { key: apiKey, owner, permissions },
-      message: 'API Key created successfully'
-    });
-  } catch (error) {
-    console.error('Error creating API key:', error);
-    res.status(500).json({ error: 'Failed to create API key' });
-  }
-});
-
-router.get('/apikeys', auth.authenticate, auth.requireRole(['admin']), async (req, res) => {
-  try {
-    const keys = await db.query('SELECT * FROM apikeys ORDER BY createdAt DESC');
-    res.json({ success: true, data: keys });
-  } catch (error) {
-    console.error('Error fetching API keys:', error);
-    res.status(500).json({ error: 'Failed to fetch API keys' });
-  }
-});
-
-router.delete('/apikeys/:id', auth.authenticate, auth.requireRole(['admin']), async (req, res) => {
-  try {
-    await db.run('DELETE FROM apikeys WHERE id = ?', [req.params.id]);
-    res.json({ success: true, message: 'API Key deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting API key:', error);
-    res.status(500).json({ error: 'Failed to delete API key' });
   }
 });
 
