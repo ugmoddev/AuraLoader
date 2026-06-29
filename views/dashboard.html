@@ -3,44 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AuraHub Loader Platform</title>
+    <title>Dashboard - AuraHub</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/public/css/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Check authentication
+        (function() {
+            const token = localStorage.getItem('aurahub_token');
+            if (!token) {
+                console.log('❌ No token found, redirecting to login...');
+                window.location.href = '/login';
+                return;
+            }
+            console.log('✅ Dashboard loaded with token');
+        })();
+        
+        // Logout function
+        function logout() {
+            localStorage.removeItem('aurahub_token');
+            window.location.href = '/login';
+        }
+    </script>
 </head>
 <body>
-    <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-brand">
-            <img src="/public/img/logo.png" alt="AuraHub">
             <h3>AuraHub</h3>
         </div>
         <ul class="sidebar-nav">
             <li><a href="/" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="/scripts"><i class="fas fa-code"></i> Scripts <span class="badge">12</span></a></li>
-            <li><a href="/loaders"><i class="fas fa-link"></i> Loaders <span class="badge">95</span></a></li>
+            <li><a href="/scripts"><i class="fas fa-code"></i> Scripts</a></li>
+            <li><a href="/loaders"><i class="fas fa-link"></i> Loaders</a></li>
             <li><a href="/users"><i class="fas fa-users"></i> Users</a></li>
             <li><a href="/logs"><i class="fas fa-history"></i> Logs</a></li>
-            <li><a href="/admin"><i class="fas fa-cog"></i> Admin Panel</a></li>
+            <li><a href="/admin"><i class="fas fa-cog"></i> Admin</a></li>
             <li><a href="/settings"><i class="fas fa-sliders-h"></i> Settings</a></li>
         </ul>
     </aside>
 
-    <!-- Main Content -->
     <main class="main-content">
-        <!-- Topbar -->
         <header class="topbar">
             <div class="topbar-search">
                 <i class="fas fa-search"></i>
-                <input type="text" placeholder="Search scripts, loaders, users...">
+                <input type="text" placeholder="Search...">
             </div>
             <div class="topbar-actions">
-                <button class="btn-icon" data-action="notifications">
-                    <i class="fas fa-bell"></i>
-                </button>
-                <button class="btn-icon sidebar-toggle">
-                    <i class="fas fa-bars"></i>
-                </button>
+                <button class="btn-icon"><i class="fas fa-bell"></i></button>
+                <button class="btn-icon" onclick="logout()"><i class="fas fa-sign-out-alt"></i></button>
                 <div class="topbar-profile">
                     <img src="https://ui-avatars.com/api/?name=Admin&background=6c5ce7&color=fff" alt="Profile">
                     <div>
@@ -51,141 +60,45 @@
             </div>
         </header>
 
-        <!-- Dashboard Content -->
         <section>
             <h1>Dashboard</h1>
-            <p class="text-secondary">Welcome back, Admin! Here's what's happening with your platform.</p>
+            <p class="text-secondary">Welcome back! Here's what's happening with your platform.</p>
+
+            <div class="stats-grid">
+                <div class="glass-card">
+                    <div class="card-title">Total Scripts</div>
+                    <div class="card-value" id="totalScripts">0</div>
+                </div>
+                <div class="glass-card">
+                    <div class="card-title">Total Loaders</div>
+                    <div class="card-value" id="totalLoaders">0</div>
+                </div>
+                <div class="glass-card">
+                    <div class="card-title">Active Users</div>
+                    <div class="card-value" id="totalUsers">0</div>
+                </div>
+            </div>
         </section>
-
-        <!-- Statistics -->
-        <div class="stats-grid">
-            <div class="glass-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <div class="card-title">Total Scripts</div>
-                        <div class="card-value" id="totalScripts">0</div>
-                    </div>
-                    <div class="card-icon primary"><i class="fas fa-code"></i></div>
-                </div>
-            </div>
-
-            <div class="glass-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <div class="card-title">Total Loaders</div>
-                        <div class="card-value" id="totalLoaders">0</div>
-                    </div>
-                    <div class="card-icon success"><i class="fas fa-link"></i></div>
-                </div>
-            </div>
-
-            <div class="glass-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <div class="card-title">Active Users</div>
-                        <div class="card-value" id="totalUsers">0</div>
-                    </div>
-                    <div class="card-icon warning"><i class="fas fa-users"></i></div>
-                </div>
-            </div>
-
-            <div class="glass-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <div class="card-title">Executions Today</div>
-                        <div class="card-value" id="executionsToday">0</div>
-                    </div>
-                    <div class="card-icon danger"><i class="fas fa-rocket"></i></div>
-                </div>
-            </div>
-
-            <div class="glass-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <div class="card-title">This Month</div>
-                        <div class="card-value" id="executionsMonth">0</div>
-                    </div>
-                    <div class="card-icon primary"><i class="fas fa-calendar-alt"></i></div>
-                </div>
-            </div>
-
-            <div class="glass-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <div class="card-title">API Calls</div>
-                        <div class="card-value" id="apiCalls">0</div>
-                    </div>
-                    <div class="card-icon success"><i class="fas fa-server"></i></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Charts -->
-        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 30px;">
-            <div class="glass-card">
-                <h3 style="margin-bottom: 16px;">Execution Trends</h3>
-                <div class="chart-container">
-                    <canvas id="executionsChart"></canvas>
-                </div>
-            </div>
-            <div class="glass-card">
-                <h3 style="margin-bottom: 16px;">Script Distribution</h3>
-                <div class="chart-container">
-                    <canvas id="scriptsChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Recent Data -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-            <div class="glass-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                    <h3>Recent Logs</h3>
-                    <a href="/logs" class="btn-glass">View All</a>
-                </div>
-                <div class="table-container">
-                    <table class="table-glass">
-                        <thead>
-                            <tr>
-                                <th>Loader</th>
-                                <th>IP</th>
-                                <th>Status</th>
-                                <th>Time</th>
-                                <th>Latency</th>
-                            </tr>
-                        </thead>
-                        <tbody id="recentLogs">
-                            <!-- Dynamic content -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="glass-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                    <h3>Recent Scripts</h3>
-                    <a href="/scripts" class="btn-glass">View All</a>
-                </div>
-                <div class="table-container">
-                    <table class="table-glass">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Author</th>
-                                <th>Version</th>
-                                <th>Status</th>
-                                <th>Created</th>
-                            </tr>
-                        </thead>
-                        <tbody id="recentScripts">
-                            <!-- Dynamic content -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
     </main>
 
-    <script src="/public/js/dashboard.js"></script>
+    <script>
+        async function loadStats() {
+            try {
+                const token = localStorage.getItem('aurahub_token');
+                const response = await fetch('/api/statistics', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('totalScripts').textContent = data.data.scripts || 0;
+                    document.getElementById('totalLoaders').textContent = data.data.loaders || 0;
+                    document.getElementById('totalUsers').textContent = data.data.users || 0;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+        loadStats();
+    </script>
 </body>
 </html>
