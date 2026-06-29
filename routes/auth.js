@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const db = require('../database/database');
 
 // ============================================================
-// LOGIN - Redirect từ server
+// LOGIN - Hỗ trợ cả JSON và Form submit
 // ============================================================
 
 router.post('/login', async (req, res) => {
@@ -15,20 +15,32 @@ router.post('/login', async (req, res) => {
     console.log('🔐 Login attempt:', username);
 
     if (!username || !password) {
+      if (req.accepts('html')) {
+        return res.redirect('/login?error=Username and password required');
+      }
       return res.status(400).json({ success: false, error: 'Username and password required' });
     }
 
     const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
     if (!user) {
+      if (req.accepts('html')) {
+        return res.redirect('/login?error=Invalid credentials');
+      }
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
+      if (req.accepts('html')) {
+        return res.redirect('/login?error=Invalid credentials');
+      }
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
 
     if (user.status !== 'active') {
+      if (req.accepts('html')) {
+        return res.redirect('/login?error=Account is disabled');
+      }
       return res.status(403).json({ success: false, error: 'Account is disabled' });
     }
 
@@ -51,14 +63,19 @@ router.post('/login', async (req, res) => {
     };
 
     console.log('✅ Login successful for:', username);
-    console.log('✅ Session saved, redirecting to /');
 
     // =============================================
-    // QUAN TRỌNG: Redirect từ server
+    // QUAN TRỌNG: Redirect cho cả JSON và HTML
     // =============================================
-    return res.json({
+    if (req.accepts('html')) {
+      // Nếu là form submit, redirect trực tiếp
+      return res.redirect('/');
+    }
+
+    // Nếu là AJAX, trả về JSON
+    res.json({
       success: true,
-      redirect: '/',  // Gửi URL redirect về client
+      redirect: '/',
       data: {
         token,
         user: {
@@ -72,6 +89,9 @@ router.post('/login', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Login error:', error);
+    if (req.accepts('html')) {
+      return res.redirect('/login?error=Login failed');
+    }
     res.status(500).json({ success: false, error: 'Login failed' });
   }
 });
