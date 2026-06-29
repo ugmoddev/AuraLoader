@@ -5,7 +5,79 @@ const jwt = require('jsonwebtoken');
 const db = require('../database/database');
 
 // ============================================================
-// REGISTER - /auth/register
+// LOGIN - Redirect từ server
+// ============================================================
+
+router.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    console.log('🔐 Login attempt:', username);
+
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Username and password required' });
+    }
+
+    const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) {
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+
+    if (user.status !== 'active') {
+      return res.status(403).json({ success: false, error: 'Account is disabled' });
+    }
+
+    // Update last login
+    await db.run('UPDATE users SET lastLogin = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
+
+    // Generate token
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Lưu vào session
+    req.session.token = token;
+    req.session.user = {
+      id: user.id,
+      username: user.username,
+      role: user.role
+    };
+
+    console.log('✅ Login successful for:', username);
+    console.log('✅ Session saved, redirecting to /');
+
+    // =============================================
+    // QUAN TRỌNG: Redirect từ server
+    // =============================================
+    return res.json({
+      success: true,
+      redirect: '/',  // Gửi URL redirect về client
+      data: {
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email || '',
+          role: user.role
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Login error:', error);
+    res.status(500).json({ success: false, error: 'Login failed' });
+  }
+});
+
+// ============================================================
+// REGISTER
 // ============================================================
 
 router.post('/register', async (req, res) => {
@@ -50,73 +122,7 @@ router.post('/register', async (req, res) => {
 });
 
 // ============================================================
-// LOGIN - /auth/login
-// ============================================================
-
-router.post('/login', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-
-    console.log('🔐 Login attempt:', username);
-
-    if (!username || !password) {
-      return res.status(400).json({ success: false, error: 'Username and password required' });
-    }
-
-    const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
-    if (!user) {
-      console.log('❌ User not found:', username);
-      return res.status(401).json({ success: false, error: 'Invalid credentials' });
-    }
-
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) {
-      console.log('❌ Invalid password for:', username);
-      return res.status(401).json({ success: false, error: 'Invalid credentials' });
-    }
-
-    if (user.status !== 'active') {
-      return res.status(403).json({ success: false, error: 'Account is disabled' });
-    }
-
-    await db.run('UPDATE users SET lastLogin = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
-
-    const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    console.log('✅ Login successful for:', username);
-
-    // Lưu vào session
-    req.session.token = token;
-    req.session.user = {
-      id: user.id,
-      username: user.username,
-      role: user.role
-    };
-
-    res.json({
-      success: true,
-      data: {
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email || '',
-          role: user.role
-        }
-      }
-    });
-  } catch (error) {
-    console.error('❌ Login error:', error);
-    res.status(500).json({ success: false, error: 'Login failed' });
-  }
-});
-
-// ============================================================
-// GET CURRENT USER - /auth/me
+// GET CURRENT USER
 // ============================================================
 
 router.get('/me', async (req, res) => {
@@ -141,7 +147,7 @@ router.get('/me', async (req, res) => {
 });
 
 // ============================================================
-// LOGOUT - /auth/logout
+// LOGOUT
 // ============================================================
 
 router.post('/logout', (req, res) => {
