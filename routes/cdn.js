@@ -4,10 +4,6 @@ const db = require('../database/database');
 const logger = require('../middlewares/logger');
 const rateLimit = require('../middlewares/rateLimit');
 const cache = require('../middlewares/cache');
-const encoder = require('../utils/encoder');
-const obfuscator = require('../utils/obfuscator');
-const fs = require('fs');
-const path = require('path');
 
 // CDN endpoint for loader
 router.get('/init/:loaderId.lua', rateLimit.cdn(), async (req, res) => {
@@ -24,7 +20,6 @@ router.get('/init/:loaderId.lua', rateLimit.cdn(), async (req, res) => {
       res.setHeader('Content-Type', 'text/plain');
       res.setHeader('Cache-Control', 'public, max-age=300');
       
-      // Log execution
       await logger.logExecution(loaderId, clientIP, hwid, 'SUCCESS', 'Cached response', cached.version || 'unknown', Date.now() - startTime);
       
       return res.send(cached.source);
@@ -50,13 +45,7 @@ router.get('/init/:loaderId.lua', rateLimit.cdn(), async (req, res) => {
       return res.status(403).send('-- Script is disabled');
     }
 
-    // Prepare the Lua source
     let source = script.source || '-- No source available';
-
-    // Obfuscate if enabled (you can add a flag in loader config)
-    if (req.query.obfuscate === 'true') {
-      source = obfuscator.obfuscate(source);
-    }
 
     // Add loader info header
     const header = `
@@ -71,12 +60,6 @@ router.get('/init/:loaderId.lua', rateLimit.cdn(), async (req, res) => {
       
     `;
 
-    // Encode source (optional)
-    if (req.query.encode === 'true') {
-      const encoded = encoder.base64Encode(source);
-      source = `loadstring(game:HttpGet("https://your-cdn.com/decode.lua"))(function() return "${encoded}" end)()`;
-    }
-
     const response = header + source;
 
     // Cache the response
@@ -85,7 +68,6 @@ router.get('/init/:loaderId.lua', rateLimit.cdn(), async (req, res) => {
       version: loader.scriptVersion
     });
 
-    // Log success
     await logger.logExecution(
       loaderId,
       clientIP,
@@ -110,25 +92,6 @@ router.get('/init/:loaderId.lua', rateLimit.cdn(), async (req, res) => {
 // Health check endpoint
 router.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
-});
-
-// Serve static scripts
-router.get('/scripts/:filename', async (req, res) => {
-  try {
-    const filename = req.params.filename;
-    const scriptPath = path.join(__dirname, '..', 'storage', 'scripts', filename);
-
-    if (!fs.existsSync(scriptPath)) {
-      return res.status(404).send('Script not found');
-    }
-
-    const content = fs.readFileSync(scriptPath, 'utf8');
-    res.setHeader('Content-Type', 'text/plain');
-    res.send(content);
-  } catch (error) {
-    console.error('Error serving script:', error);
-    res.status(500).send('Internal server error');
-  }
 });
 
 module.exports = router;
