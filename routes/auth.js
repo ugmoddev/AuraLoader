@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const db = require('../database/database');
 
 // ============================================================
-// REGISTER - NO AUTH REQUIRED
+// REGISTER - /auth/register
 // ============================================================
 
 router.post('/register', async (req, res) => {
@@ -15,16 +15,16 @@ router.post('/register', async (req, res) => {
     console.log('📝 Register attempt:', username);
 
     if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password required' });
+      return res.status(400).json({ success: false, error: 'Username and password required' });
     }
 
     if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
     }
 
     const existing = await db.get('SELECT * FROM users WHERE username = ?', [username]);
     if (existing) {
-      return res.status(400).json({ error: 'Username already taken' });
+      return res.status(400).json({ success: false, error: 'Username already taken' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -45,12 +45,12 @@ router.post('/register', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Registration error:', error);
-    res.status(500).json({ error: 'Registration failed' });
+    res.status(500).json({ success: false, error: 'Registration failed' });
   }
 });
 
 // ============================================================
-// LOGIN - NO AUTH REQUIRED - FIXED
+// LOGIN - /auth/login
 // ============================================================
 
 router.post('/login', async (req, res) => {
@@ -60,53 +60,34 @@ router.post('/login', async (req, res) => {
     console.log('🔐 Login attempt:', username);
 
     if (!username || !password) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Username and password required' 
-      });
+      return res.status(400).json({ success: false, error: 'Username and password required' });
     }
 
     const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
     if (!user) {
       console.log('❌ User not found:', username);
-      return res.status(401).json({ 
-        success: false,
-        error: 'Invalid credentials' 
-      });
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
       console.log('❌ Invalid password for:', username);
-      return res.status(401).json({ 
-        success: false,
-        error: 'Invalid credentials' 
-      });
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
 
     if (user.status !== 'active') {
-      return res.status(403).json({ 
-        success: false,
-        error: 'Account is disabled' 
-      });
+      return res.status(403).json({ success: false, error: 'Account is disabled' });
     }
 
-    // Update last login
     await db.run('UPDATE users SET lastLogin = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
 
-    // Generate token
     const token = jwt.sign(
-      { 
-        id: user.id, 
-        username: user.username, 
-        role: user.role 
-      },
+      { id: user.id, username: user.username, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
     console.log('✅ Login successful for:', username);
-    console.log('🎫 Token generated:', token.substring(0, 20) + '...');
 
     // Lưu vào session
     req.session.token = token;
@@ -116,11 +97,10 @@ router.post('/login', async (req, res) => {
       role: user.role
     };
 
-    // Response với success: true
-    const responseData = {
+    res.json({
       success: true,
       data: {
-        token: token,
+        token,
         user: {
           id: user.id,
           username: user.username,
@@ -128,67 +108,45 @@ router.post('/login', async (req, res) => {
           role: user.role
         }
       }
-    };
-
-    console.log('📤 Sending response:', JSON.stringify(responseData, null, 2));
-    res.json(responseData);
-
+    });
   } catch (error) {
     console.error('❌ Login error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Login failed: ' + error.message 
-    });
+    res.status(500).json({ success: false, error: 'Login failed' });
   }
 });
 
 // ============================================================
-// GET CURRENT USER - REQUIRES AUTH
+// GET CURRENT USER - /auth/me
 // ============================================================
 
 router.get('/me', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
     if (!token) {
-      return res.status(401).json({ 
-        success: false,
-        error: 'No token provided' 
-      });
+      return res.status(401).json({ success: false, error: 'No token provided' });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await db.get('SELECT id, username, email, role, createdAt, lastLogin FROM users WHERE id = ?', [decoded.id]);
 
     if (!user) {
-      return res.status(404).json({ 
-        success: false,
-        error: 'User not found' 
-      });
+      return res.status(404).json({ success: false, error: 'User not found' });
     }
 
-    res.json({ 
-      success: true, 
-      data: user 
-    });
+    res.json({ success: true, data: user });
   } catch (error) {
     console.error('❌ Auth error:', error);
-    res.status(401).json({ 
-      success: false,
-      error: 'Invalid token' 
-    });
+    res.status(401).json({ success: false, error: 'Invalid token' });
   }
 });
 
 // ============================================================
-// LOGOUT
+// LOGOUT - /auth/logout
 // ============================================================
 
 router.post('/logout', (req, res) => {
   req.session.destroy();
-  res.json({ 
-    success: true, 
-    message: 'Logged out successfully' 
-  });
+  res.json({ success: true, message: 'Logged out successfully' });
 });
 
 module.exports = router;
