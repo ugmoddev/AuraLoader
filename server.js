@@ -34,6 +34,7 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Session - CẤU HÌNH QUAN TRỌNG
 app.use(session({
   secret: process.env.SESSION_SECRET || 'default_secret_change_me',
   resave: false,
@@ -55,6 +56,8 @@ app.use('/storage', express.static(path.join(__dirname, 'storage')));
 
 app.use((req, res, next) => {
   console.log(`📨 ${req.method} ${req.url}`);
+  console.log(`  Session ID: ${req.sessionID}`);
+  console.log(`  Session token: ${req.session?.token ? 'Present' : 'None'}`);
   next();
 });
 
@@ -121,7 +124,7 @@ const requireRole = (roles) => {
 };
 
 // ============================================================
-// ROUTES - QUAN TRỌNG: API TRƯỚC, VIEWS SAU
+// ROUTES
 // ============================================================
 
 console.log('📄 Loading routes...');
@@ -152,6 +155,7 @@ app.use('/users', userRoutes);
 const viewRoutes = require('./routes/views');
 
 app.get('/login', (req, res) => {
+  // Nếu đã có session token, redirect về dashboard
   if (req.session?.token) {
     try {
       jwt.verify(req.session.token, process.env.JWT_SECRET);
@@ -264,20 +268,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 AuraHub Loader Platform');
   console.log(`📍 Running on http://0.0.0.0:${PORT}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('========================================');
-  console.log('📋 Available routes:');
-  console.log('  PUBLIC:');
-  console.log('  - /login          Login page');
-  console.log('  - /register       Register page');
-  console.log('  - /auth/login     Login API (POST)');
-  console.log('  - /auth/register  Register API (POST)');
-  console.log('  PROTECTED:');
-  console.log('  - /               Dashboard');
-  console.log('  - /scripts        Scripts Manager');
-  console.log('  - /loaders        Loaders Manager');
-  console.log('  - /users          Users Manager');
-  console.log('  - /logs           Logs Viewer');
-  console.log('  - /settings       Settings');
-  console.log('  - /admin          Admin Panel');
   console.log('========================================');
 });
