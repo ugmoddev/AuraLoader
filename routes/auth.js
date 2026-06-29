@@ -5,14 +5,15 @@ const jwt = require('jsonwebtoken');
 const db = require('../database/database');
 
 // ============================================================
-// REGISTER - KHÔNG CẦN AUTHENTICATION
+// REGISTER - NO AUTH REQUIRED
 // ============================================================
 
 router.post('/register', async (req, res) => {
   try {
     const { username, password, email } = req.body;
 
-    // Validate input
+    console.log('📝 Register attempt:', username);
+
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
     }
@@ -21,16 +22,13 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    // Check if user exists
     const existing = await db.get('SELECT * FROM users WHERE username = ?', [username]);
     if (existing) {
       return res.status(400).json({ error: 'Username already taken' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    // Create user
     const result = await db.run(`
       INSERT INTO users (username, password, email, role)
       VALUES (?, ?, ?, 'user')
@@ -38,24 +36,28 @@ router.post('/register', async (req, res) => {
 
     const user = await db.get('SELECT id, username, email, role FROM users WHERE id = ?', [result.lastID]);
 
+    console.log('✅ User registered:', username);
+
     res.status(201).json({
       success: true,
       data: user,
       message: 'User registered successfully'
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('❌ Registration error:', error);
     res.status(500).json({ error: 'Registration failed' });
   }
 });
 
 // ============================================================
-// LOGIN - KHÔNG CẦN AUTHENTICATION
+// LOGIN - NO AUTH REQUIRED
 // ============================================================
 
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
+
+    console.log('🔐 Login attempt:', username);
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
@@ -63,11 +65,13 @@ router.post('/login', async (req, res) => {
 
     const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
     if (!user) {
+      console.log('❌ User not found:', username);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
+      console.log('❌ Invalid password for:', username);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -85,6 +89,17 @@ router.post('/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    console.log('✅ Login successful for:', username);
+    console.log('🎫 Token generated');
+
+    // Save to session
+    req.session.token = token;
+    req.session.user = {
+      id: user.id,
+      username: user.username,
+      role: user.role
+    };
+
     res.json({
       success: true,
       data: {
@@ -98,18 +113,18 @@ router.post('/login', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ Login error:', error);
     res.status(500).json({ error: 'Login failed' });
   }
 });
 
 // ============================================================
-// GET CURRENT USER - CẦN AUTHENTICATION
+// GET CURRENT USER - REQUIRES AUTH
 // ============================================================
 
 router.get('/me', async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
     if (!token) {
       return res.status(401).json({ error: 'No token provided' });
     }
@@ -123,49 +138,18 @@ router.get('/me', async (req, res) => {
 
     res.json({ success: true, data: user });
   } catch (error) {
+    console.error('❌ Auth error:', error);
     res.status(401).json({ error: 'Invalid token' });
   }
 });
 
 // ============================================================
-// CHANGE PASSWORD - CẦN AUTHENTICATION
+// LOGOUT
 // ============================================================
 
-router.put('/change-password', async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Current password and new password required' });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'New password must be at least 6 characters' });
-    }
-
-    const user = await db.get('SELECT * FROM users WHERE id = ?', [decoded.id]);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const valid = await bcrypt.compare(currentPassword, user.password);
-    if (!valid) {
-      return res.status(401).json({ error: 'Current password is incorrect' });
-    }
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, decoded.id]);
-
-    res.json({ success: true, message: 'Password updated successfully' });
-  } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
-  }
+router.post('/logout', (req, res) => {
+  req.session.destroy();
+  res.json({ success: true, message: 'Logged out successfully' });
 });
 
 module.exports = router;
