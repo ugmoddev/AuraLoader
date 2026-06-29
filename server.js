@@ -23,7 +23,6 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
-// CORS with credentials
 app.use(cors({
   origin: '*',
   credentials: true
@@ -33,7 +32,6 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Session
 app.use(session({
   secret: process.env.SESSION_SECRET || 'default_secret_change_me',
   resave: false,
@@ -44,7 +42,6 @@ app.use(session({
   }
 }));
 
-// Static files
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/storage', express.static(path.join(__dirname, 'storage')));
 
@@ -54,6 +51,7 @@ app.use('/storage', express.static(path.join(__dirname, 'storage')));
 
 app.use((req, res, next) => {
   console.log(`📨 ${req.method} ${req.url}`);
+  console.log(`  Session token: ${req.session?.token ? 'Present' : 'None'}`);
   next();
 });
 
@@ -66,20 +64,26 @@ const db = require('./database/database');
 console.log('✅ Database initialized');
 
 // ============================================================
-// AUTHENTICATION MIDDLEWARE
+// AUTHENTICATION MIDDLEWARE - FIXED
 // ============================================================
 
 const isAuthenticated = (req, res, next) => {
-  // Skip for register and login
-  if (req.path === '/register' || req.path === '/login' || 
-      req.path.startsWith('/auth/register') || req.path.startsWith('/auth/login')) {
+  // LUÔN LUÔN BỎ QUA CHO CÁC ROUTE CÔNG KHAI
+  const publicRoutes = ['/login', '/register', '/auth/login', '/auth/register', '/auth/logout', '/test'];
+  if (publicRoutes.includes(req.path) || req.path.startsWith('/auth/')) {
+    console.log(`🔓 Public route: ${req.path}`);
     return next();
   }
 
+  // Lấy token từ header hoặc session
   const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
   
+  console.log(`🔐 Protected route: ${req.path}`);
+  console.log(`  Token: ${token ? 'Present' : 'None'}`);
+
   if (!token) {
-    if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
+    console.log(`❌ No token, redirecting to /login`);
+    if (req.path.startsWith('/api/')) {
       return res.status(401).json({ error: 'Authentication required' });
     }
     return res.redirect('/login');
@@ -88,10 +92,16 @@ const isAuthenticated = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
+    // Cập nhật session
     req.session.token = token;
+    req.session.user = decoded;
+    console.log(`✅ Authenticated: ${decoded.username}`);
     next();
   } catch (error) {
-    if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
+    console.log(`❌ Invalid token: ${error.message}`);
+    // Xóa token không hợp lệ
+    req.session.token = null;
+    if (req.path.startsWith('/api/')) {
       return res.status(401).json({ error: 'Invalid token' });
     }
     return res.redirect('/login');
@@ -116,11 +126,11 @@ const requireRole = (roles) => {
 
 console.log('📄 Loading routes...');
 
-// 1. AUTH ROUTES (public)
+// 1. AUTH ROUTES (public - KHÔNG CẦN AUTH)
 const authRoutes = require('./routes/auth');
 app.use('/auth', authRoutes);
 
-// 2. API ROUTES (require authentication)
+// 2. API ROUTES (cần auth)
 const apiRoutes = require('./routes/api');
 const loaderRoutes = require('./routes/loader');
 const cdnRoutes = require('./routes/cdn');
@@ -141,15 +151,22 @@ app.use('/users', userRoutes);
 // 3. VIEW ROUTES
 const viewRoutes = require('./routes/views');
 
-// Public view routes
+// Route login - KHÔNG CẦN AUTH
 app.get('/login', (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
-  if (token) {
+  // Nếu đã có session token, redirect về dashboard
+  if (req.session?.token) {
     try {
-      jwt.verify(token, process.env.JWT_SECRET);
+      jwt.verify(req.session.token, process.env.JWT_SECRET);
+      console.log('✅ Session token valid, redirecting to dashboard');
       return res.redirect('/');
-    } catch (error) {}
+    } catch (error) {
+      // Token không hợp lệ, xóa session
+      req.session.token = null;
+      console.log('❌ Session token invalid, clearing session');
+    }
   }
+  
+  // Render login page
   const viewPath = path.join(__dirname, 'views', 'login.html');
   const fs = require('fs');
   if (fs.existsSync(viewPath)) {
@@ -168,6 +185,7 @@ app.get('/login', (req, res) => {
   }
 });
 
+// Route register - KHÔNG CẦN AUTH
 app.get('/register', (req, res) => {
   const viewPath = path.join(__dirname, 'views', 'register.html');
   const fs = require('fs');
@@ -187,7 +205,7 @@ app.get('/register', (req, res) => {
   }
 });
 
-// Protected view routes
+// Protected view routes (cần auth)
 const protectedViewRoutes = ['/', '/dashboard', '/scripts', '/loaders', '/users', '/logs', '/settings', '/admin'];
 app.use(protectedViewRoutes, isAuthenticated);
 
@@ -254,17 +272,17 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('========================================');
   console.log('📋 Available routes:');
   console.log('  PUBLIC:');
-  console.log('  - /login          Login page');
-  console.log('  - /register       Register page');
-  console.log('  - /auth/login     Login API (POST)');
-  console.log('  - /auth/register  Register API (POST)');
+  console.log('  - /login          Login page (no auth)');
+  console.log('  - /register       Register page (no auth)');
+  console.log('  - /auth/login     Login API (POST, no auth)');
+  console.log('  - /auth/register  Register API (POST, no auth)');
   console.log('  PROTECTED:');
-  console.log('  - /               Dashboard');
-  console.log('  - /scripts        Scripts Manager');
-  console.log('  - /loaders        Loaders Manager');
-  console.log('  - /users          Users Manager');
-  console.log('  - /logs           Logs Viewer');
-  console.log('  - /settings       Settings');
-  console.log('  - /admin          Admin Panel');
+  console.log('  - /               Dashboard (requires auth)');
+  console.log('  - /scripts        Scripts Manager (requires auth)');
+  console.log('  - /loaders        Loaders Manager (requires auth)');
+  console.log('  - /users          Users Manager (requires auth)');
+  console.log('  - /logs           Logs Viewer (requires auth)');
+  console.log('  - /settings       Settings (requires auth)');
+  console.log('  - /admin          Admin Panel (requires auth)');
   console.log('========================================');
 });
