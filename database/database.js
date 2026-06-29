@@ -7,11 +7,23 @@ const bcrypt = require('bcrypt');
 class Database {
   constructor() {
     const dbPath = path.join(__dirname, 'database.db');
+    const dbDir = path.dirname(dbPath);
+    
+    // Ensure database directory exists
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+    
     this.db = new sqlite3.Database(dbPath);
     this.init();
   }
 
   init() {
+    // Create tables sequentially to avoid race conditions
+    this.createTables();
+  }
+
+  createTables() {
     // Users table
     this.db.run(`
       CREATE TABLE IF NOT EXISTS users (
@@ -25,7 +37,9 @@ class Database {
         apiKey TEXT UNIQUE,
         status TEXT DEFAULT 'active'
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Error creating users table:', err);
+    });
 
     // Scripts table
     this.db.run(`
@@ -45,7 +59,9 @@ class Database {
         category TEXT,
         tags TEXT
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Error creating scripts table:', err);
+    });
 
     // Loaders table
     this.db.run(`
@@ -61,7 +77,9 @@ class Database {
         executions INTEGER DEFAULT 0,
         FOREIGN KEY (scriptId) REFERENCES scripts(id)
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Error creating loaders table:', err);
+    });
 
     // Logs table
     this.db.run(`
@@ -77,7 +95,9 @@ class Database {
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (loaderId) REFERENCES loaders(loaderId)
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Error creating logs table:', err);
+    });
 
     // API Keys table
     this.db.run(`
@@ -90,9 +110,11 @@ class Database {
         lastUsed DATETIME,
         status TEXT DEFAULT 'active'
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Error creating apikeys table:', err);
+    });
 
-    // Settings table
+    // Settings table - THIS IS THE FIX
     this.db.run(`
       CREATE TABLE IF NOT EXISTS settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,7 +122,14 @@ class Database {
         value TEXT,
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )
-    `);
+    `, (err) => {
+      if (err) {
+        console.error('Error creating settings table:', err);
+      } else {
+        // Create default settings after table is created
+        this.createDefaultSettings();
+      }
+    });
 
     // Script versions table
     this.db.run(`
@@ -113,26 +142,33 @@ class Database {
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (scriptId) REFERENCES scripts(id)
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Error creating script_versions table:', err);
+    });
 
-    // Create default admin user
-    this.createAdminUser();
-
-    // Create default settings
-    this.createDefaultSettings();
+    // Create default admin user after tables are created
+    setTimeout(() => {
+      this.createAdminUser();
+    }, 100);
   }
 
   async createAdminUser() {
     const adminUsername = process.env.ADMIN_USERNAME || 'admin';
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
     
-    const hashedPassword = await bcrypt.hash(adminPassword, 10);
-    const apiKey = crypto.randomBytes(32).toString('hex');
+    try {
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
+      const apiKey = crypto.randomBytes(32).toString('hex');
 
-    this.db.run(`
-      INSERT OR IGNORE INTO users (username, password, role, apiKey, email)
-      VALUES (?, ?, 'admin', ?, 'admin@aurahub.com')
-    `, [adminUsername, hashedPassword, apiKey]);
+      this.db.run(`
+        INSERT OR IGNORE INTO users (username, password, role, apiKey, email)
+        VALUES (?, ?, 'admin', ?, 'admin@aurahub.com')
+      `, [adminUsername, hashedPassword, apiKey], (err) => {
+        if (err) console.error('Error creating admin user:', err);
+      });
+    } catch (error) {
+      console.error('Error hashing admin password:', error);
+    }
   }
 
   createDefaultSettings() {
@@ -153,7 +189,9 @@ class Database {
       this.db.run(`
         INSERT OR IGNORE INTO settings (key, value)
         VALUES (?, ?)
-      `, [key, value]);
+      `, [key, value], (err) => {
+        if (err) console.error(`Error inserting setting ${key}:`, err);
+      });
     });
   }
 
