@@ -22,10 +22,18 @@ app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
-app.use(cors());
+
+// CORS with credentials
+app.use(cors({
+  origin: '*',
+  credentials: true
+}));
+
 app.use(morgan('combined'));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Session
 app.use(session({
   secret: process.env.SESSION_SECRET || 'default_secret_change_me',
   resave: false,
@@ -36,8 +44,18 @@ app.use(session({
   }
 }));
 
+// Static files
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/storage', express.static(path.join(__dirname, 'storage')));
+
+// ============================================================
+// REQUEST LOGGER (DEBUG)
+// ============================================================
+
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.url}`);
+  next();
+});
 
 // ============================================================
 // DATABASE
@@ -51,9 +69,8 @@ console.log('✅ Database initialized');
 // AUTHENTICATION MIDDLEWARE
 // ============================================================
 
-// Middleware to check if user is authenticated
 const isAuthenticated = (req, res, next) => {
-  // BỎ QUA KIỂM TRA CHO CÁC ROUTE /auth/register và /auth/login
+  // Skip for register and login
   if (req.path === '/register' || req.path === '/login' || 
       req.path.startsWith('/auth/register') || req.path.startsWith('/auth/login')) {
     return next();
@@ -99,7 +116,7 @@ const requireRole = (roles) => {
 
 console.log('📄 Loading routes...');
 
-// 1. AUTH ROUTES (public - no authentication required)
+// 1. AUTH ROUTES (public)
 const authRoutes = require('./routes/auth');
 app.use('/auth', authRoutes);
 
@@ -110,7 +127,6 @@ const cdnRoutes = require('./routes/cdn');
 const adminRoutes = require('./routes/admin');
 const userRoutes = require('./routes/users');
 
-// Protect API routes (EXCEPT register and login)
 app.use('/api', isAuthenticated);
 app.use('/loader', isAuthenticated);
 app.use('/admin', isAuthenticated);
@@ -125,7 +141,7 @@ app.use('/users', userRoutes);
 // 3. VIEW ROUTES
 const viewRoutes = require('./routes/views');
 
-// Public view routes (no authentication required)
+// Public view routes
 app.get('/login', (req, res) => {
   const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
   if (token) {
@@ -171,7 +187,7 @@ app.get('/register', (req, res) => {
   }
 });
 
-// Protected view routes (require authentication)
+// Protected view routes
 const protectedViewRoutes = ['/', '/dashboard', '/scripts', '/loaders', '/users', '/logs', '/settings', '/admin'];
 app.use(protectedViewRoutes, isAuthenticated);
 
@@ -237,24 +253,18 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log('========================================');
   console.log('📋 Available routes:');
-  console.log('  PUBLIC ROUTES:');
+  console.log('  PUBLIC:');
   console.log('  - /login          Login page');
   console.log('  - /register       Register page');
-  console.log('  - /logout         Logout');
   console.log('  - /auth/login     Login API (POST)');
-  console.log('  - /auth/register  Register API (POST) - NO AUTH REQUIRED');
-  console.log('  PROTECTED ROUTES:');
+  console.log('  - /auth/register  Register API (POST)');
+  console.log('  PROTECTED:');
   console.log('  - /               Dashboard');
-  console.log('  - /dashboard      Dashboard');
   console.log('  - /scripts        Scripts Manager');
   console.log('  - /loaders        Loaders Manager');
   console.log('  - /users          Users Manager');
   console.log('  - /logs           Logs Viewer');
   console.log('  - /settings       Settings');
   console.log('  - /admin          Admin Panel');
-  console.log('  API ROUTES:');
-  console.log('  - /api/scripts    Get all scripts');
-  console.log('  - /api/scripts    Create script (POST)');
-  console.log('  - /api/statistics Get statistics');
   console.log('========================================');
 });
