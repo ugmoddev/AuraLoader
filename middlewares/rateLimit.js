@@ -3,7 +3,7 @@ const rateLimit = require('express-rate-limit');
 class RateLimiter {
   global() {
     return rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
+      windowMs: 15 * 60 * 1000,
       max: 100,
       message: { error: 'Too many requests, please try again later.' }
     });
@@ -11,7 +11,7 @@ class RateLimiter {
 
   api() {
     return rateLimit({
-      windowMs: 1 * 60 * 1000, // 1 minute
+      windowMs: 1 * 60 * 1000,
       max: 60,
       message: { error: 'API rate limit exceeded.' }
     });
@@ -19,7 +19,7 @@ class RateLimiter {
 
   cdn() {
     return rateLimit({
-      windowMs: 1 * 60 * 1000, // 1 minute
+      windowMs: 1 * 60 * 1000,
       max: 30,
       message: { error: 'CDN rate limit exceeded.' }
     });
@@ -27,7 +27,7 @@ class RateLimiter {
 
   auth() {
     return rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
+      windowMs: 15 * 60 * 1000,
       max: 5,
       message: { error: 'Too many authentication attempts.' }
     });
