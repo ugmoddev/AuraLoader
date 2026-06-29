@@ -8,7 +8,6 @@ class LoggerMiddleware {
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `, [loaderId, ip, hwid, status, message, version, latency]);
 
-      // Update loader execution count
       await db.run(`
         UPDATE loaders 
         SET executions = executions + 1, lastExecution = CURRENT_TIMESTAMP 
