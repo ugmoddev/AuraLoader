@@ -48,13 +48,14 @@ const db = require('./database/database');
 console.log('✅ Database initialized');
 
 // ============================================================
-// AUTHENTICATION MIDDLEWARE (FIXED)
+// AUTHENTICATION MIDDLEWARE
 // ============================================================
 
 // Middleware to check if user is authenticated
 const isAuthenticated = (req, res, next) => {
-  // BỎ QUA KIỂM TRA CHO CÁC ROUTE /auth/register
-  if (req.path === '/register' || req.path.startsWith('/auth/register')) {
+  // BỎ QUA KIỂM TRA CHO CÁC ROUTE /auth/register và /auth/login
+  if (req.path === '/register' || req.path === '/login' || 
+      req.path.startsWith('/auth/register') || req.path.startsWith('/auth/login')) {
     return next();
   }
 
@@ -109,7 +110,7 @@ const cdnRoutes = require('./routes/cdn');
 const adminRoutes = require('./routes/admin');
 const userRoutes = require('./routes/users');
 
-// Protect API routes (EXCEPT register)
+// Protect API routes (EXCEPT register and login)
 app.use('/api', isAuthenticated);
 app.use('/loader', isAuthenticated);
 app.use('/admin', isAuthenticated);
