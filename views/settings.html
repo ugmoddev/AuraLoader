@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - AuraHub</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/public/css/style.css">
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <img src="/public/img/logo.png" alt="AuraHub">
+            <h3>AuraHub</h3>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="/scripts"><i class="fas fa-code"></i> Scripts</a></li>
+            <li><a href="/loaders"><i class="fas fa-link"></i> Loaders</a></li>
+            <li><a href="/users"><i class="fas fa-users"></i> Users</a></li>
+            <li><a href="/logs"><i class="fas fa-history"></i> Logs</a></li>
+            <li><a href="/admin"><i class="fas fa-cog"></i> Admin</a></li>
+            <li><a href="/settings" class="active"><i class="fas fa-sliders-h"></i> Settings</a></li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <header class="topbar">
+            <div class="topbar-search">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search...">
+            </div>
+            <div class="topbar-actions">
+                <button class="btn-icon"><i class="fas fa-bell"></i></button>
+                <button class="btn-icon sidebar-toggle"><i class="fas fa-bars"></i></button>
+                <div class="topbar-profile">
+                    <img src="https://ui-avatars.com/api/?name=Admin&background=6c5ce7&color=fff" alt="Profile">
+                    <div>
+                        <div class="username">Admin</div>
+                        <div class="role">Administrator</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <section>
+            <h1>Settings</h1>
+            <p class="text-secondary">Configure your platform settings</p>
+
+            <div style="margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <!-- General Settings -->
+                <div class="glass-card">
+                    <h3 style="margin-bottom: 16px;">General Settings</h3>
+                    <form id="generalSettings">
+                        <div style="margin-bottom: 12px;">
+                            <label>Site Name</label>
+                            <input type="text" name="siteName" value="AuraHub Loader Platform">
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label>Logo URL</label>
+                            <input type="text" name="logo" value="/public/img/logo.png">
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label>Theme</label>
+                            <select name="theme">
+                                <option value="dark" selected>Dark</option>
+                                <option value="light">Light</option>
+                            </select>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label>API URL</label>
+                            <input type="text" name="apiUrl" value="http://localhost:3000/api">
+                        </div>
+                        <button type="submit" class="btn-primary-glass">Save Changes</button>
+                    </form>
+                </div>
+
+                <!-- Loader Settings -->
+                <div class="glass-card">
+                    <h3 style="margin-bottom: 16px;">Loader Settings</h3>
+                    <form id="loaderSettings">
+                        <div style="margin-bottom: 12px;">
+                            <label>CDN URL</label>
+                            <input type="text" name="cdnUrl" value="http://localhost:3000/cdn">
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label>Loader Prefix</label>
+                            <input type="text" name="loaderPrefix" value="Aura">
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label>
+                                <input type="checkbox" name="autoBackup" checked>
+                                Auto Backup
+                            </label>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label>
+                                <input type="checkbox" name="autoUpdate" checked>
+                                Auto Update
+                            </label>
+                        </div>
+                        <button type="submit" class="btn-primary-glass">Save Changes</button>
+                    </form>
+                </div>
+
+                <!-- Security Settings -->
+                <div class="glass-card">
+                    <h3 style="margin-bottom: 16px;">Security Settings</h3>
+                    <form id="securitySettings">
+                        <div style="margin-bottom: 12px;">
+                            <label>
+                                <input type="checkbox" name="registration" checked>
+                                Allow Registration
+                            </label>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label>
+                                <input type="checkbox" name="maintenance">
+                                Maintenance Mode
+                            </label>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label>JWT Expiration (hours)</label>
+                            <input type="number" name="jwtExpiration" value="24">
+                        </div>
+                        <button type="submit" class="btn-primary-glass">Save Changes</button>
+                    </form>
+                </div>
+
+                <!-- Storage Settings -->
+                <div class="glass-card">
+                    <h3 style="margin-bottom: 16px;">Storage</h3>
+                    <div style="margin-bottom: 12px;">
+                        <label>Total Storage Used</label>
+                        <div style="background: var(--bg-primary); padding: 12px; border-radius: 8px;">
+                            <span id="storageUsed">0 MB</span>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label>Files</label>
+                        <div style="background: var(--bg-primary); padding: 12px; border-radius: 8px;">
+                            <span id="fileCount">0</span> files
+                        </div>
+                    </div>
+                    <button class="btn-glass" onclick="clearCache()"><i class="fas fa-broom"></i> Clear Cache</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        async function loadStorageStats() {
+            try {
+                const response = await fetch('/api/storage');
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('storageUsed').textContent = data.data.totalSizeMB + ' MB';
+                    document.getElementById('fileCount').textContent = data.data.fileCount;
+                }
+            } catch (error) {
+                console.error('Failed to load storage stats:', error);
+            }
+        }
+
+        async function clearCache() {
+            if (!confirm('Are you sure you want to clear the cache?')) return;
+            
+            try {
+                const token = localStorage.getItem('aurahub_token');
+                const response = await fetch('/api/cache/clear', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    alert('Cache cleared successfully!');
+                }
+            } catch (error) {
+                alert('Failed to clear cache');
+            }
+        }
+
+        document.getElementById('generalSettings')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+            
+            try {
+                const token = localStorage.getItem('aurahub_token');
+                const response = await fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Settings saved successfully!');
+                }
+            } catch (error) {
+                alert('Failed to save settings');
+            }
+        });
+
+        loadStorageStats();
+    </script>
+</body>
+</html>

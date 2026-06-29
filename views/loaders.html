@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loaders - AuraHub</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/public/css/style.css">
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <img src="/public/img/logo.png" alt="AuraHub">
+            <h3>AuraHub</h3>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="/scripts"><i class="fas fa-code"></i> Scripts</a></li>
+            <li><a href="/loaders" class="active"><i class="fas fa-link"></i> Loaders</a></li>
+            <li><a href="/users"><i class="fas fa-users"></i> Users</a></li>
+            <li><a href="/logs"><i class="fas fa-history"></i> Logs</a></li>
+            <li><a href="/admin"><i class="fas fa-cog"></i> Admin</a></li>
+            <li><a href="/settings"><i class="fas fa-sliders-h"></i> Settings</a></li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <header class="topbar">
+            <div class="topbar-search">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search loaders...">
+            </div>
+            <div class="topbar-actions">
+                <button class="btn-icon"><i class="fas fa-bell"></i></button>
+                <button class="btn-icon sidebar-toggle"><i class="fas fa-bars"></i></button>
+                <div class="topbar-profile">
+                    <img src="https://ui-avatars.com/api/?name=Admin&background=6c5ce7&color=fff" alt="Profile">
+                    <div>
+                        <div class="username">Admin</div>
+                        <div class="role">Administrator</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <section>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                    <h1>Loaders</h1>
+                    <p class="text-secondary">Manage loader instances</p>
+                </div>
+                <button class="btn-primary-glass" onclick="openCreateLoader()">
+                    <i class="fas fa-plus"></i> New Loader
+                </button>
+            </div>
+
+            <div class="glass-card">
+                <div class="table-container">
+                    <table class="table-glass">
+                        <thead>
+                            <tr>
+                                <th>Loader ID</th>
+                                <th>Script</th>
+                                <th>Version</th>
+                                <th>Status</th>
+                                <th>Executions</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="loadersList">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Create Loader Modal -->
+    <div id="createLoaderModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center;">
+        <div class="modal-glass" style="max-width: 500px; width: 90%;">
+            <div class="modal-header">
+                <h3>Create New Loader</h3>
+                <button onclick="closeCreateLoader()" style="background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer;">&times;</button>
+            </div>
+            <div style="padding: 24px;">
+                <form id="createLoaderForm">
+                    <div style="margin-bottom: 16px;">
+                        <label>Select Script *</label>
+                        <select name="scriptId" id="scriptSelect" required>
+                            <option value="">Loading scripts...</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label>Version</label>
+                        <input type="text" name="version" placeholder="1.0.0">
+                    </div>
+                    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button type="button" class="btn-glass" onclick="closeCreateLoader()">Cancel</button>
+                        <button type="submit" class="btn-primary-glass">Create Loader</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadLoaders() {
+            try {
+                const token = localStorage.getItem('aurahub_token');
+                const response = await fetch('/api/loaders', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderLoaders(data.data);
+                }
+            } catch (error) {
+                console.error('Failed to load loaders:', error);
+            }
+        }
+
+        function renderLoaders(loaders) {
+            const tbody = document.getElementById('loadersList');
+            tbody.innerHTML = '';
+            
+            loaders.forEach(loader => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><code style="background: var(--bg-glass); padding: 2px 8px; border-radius: 4px;">${loader.loaderId}</code></td>
+                    <td>${loader.scriptName || 'Unknown'}</td>
+                    <td>v${loader.version}</td>
+                    <td><span class="badge-status ${loader.status === 'active' ? 'active' : 'inactive'}">${loader.status}</span></td>
+                    <td>${loader.executions || 0}</td>
+                    <td>${new Date(loader.createdAt).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn-glass" style="padding: 4px 8px;" onclick="viewLoader('${loader.loaderId}')"><i class="fas fa-eye"></i></button>
+                        <button class="btn-glass" style="padding: 4px 8px; color: var(--danger);" onclick="deleteLoader('${loader.loaderId}')"><i class="fas fa-trash"></i></button>
+                        <button class="btn-glass" style="padding: 4px 8px;" onclick="copyLoaderCode('${loader.loaderId}')"><i class="fas fa-copy"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function loadScriptsForSelect() {
+            try {
+                const token = localStorage.getItem('aurahub_token');
+                const response = await fetch('/api/scripts', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const select = document.getElementById('scriptSelect');
+                    select.innerHTML = '<option value="">Select a script</option>';
+                    data.data.forEach(script => {
+                        const option = document.createElement('option');
+                        option.value = script.uuid;
+                        option.textContent = `${script.name} (v${script.version})`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load scripts:', error);
+            }
+        }
+
+        function openCreateLoader() {
+            document.getElementById('createLoaderModal').style.display = 'flex';
+            loadScriptsForSelect();
+        }
+
+        function closeCreateLoader() {
+            document.getElementById('createLoaderModal').style.display = 'none';
+        }
+
+        document.getElementById('createLoaderForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+            
+            try {
+                const token = localStorage.getItem('aurahub_token');
+                const response = await fetch('/api/loaders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    closeCreateLoader();
+                    loadLoaders();
+                    alert('Loader created successfully!');
+                } else {
+                    alert(result.error || 'Failed to create loader');
+                }
+            } catch (error) {
+                alert('Error creating loader');
+            }
+        });
+
+        async function deleteLoader(loaderId) {
+            if (!confirm('Are you sure you want to delete this loader?')) return;
+            
+            try {
+                const token = localStorage.getItem('aurahub_token');
+                const response = await fetch(`/api/loaders/${loaderId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    loadLoaders();
+                    alert('Loader deleted successfully!');
+                } else {
+                    alert(result.error || 'Failed to delete loader');
+                }
+            } catch (error) {
+                alert('Error deleting loader');
+            }
+        }
+
+        function viewLoader(loaderId) {
+            window.location.href = `/loaders/${loaderId}`;
+        }
+
+        async function copyLoaderCode(loaderId) {
+            try {
+                const response = await fetch(`/api/loaders/${loaderId}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const code = `
+                        local LoaderID = "${data.data.loaderId}"
+                        local Version = "${data.data.version}"
+                        local Secret = "${data.data.secret}"
+                        
+                        local function checkLoader()
+                            local success, result = pcall(function()
+                                return game:HttpGet("https://your-cdn.com/init/" .. LoaderID .. ".lua?hwid=" .. tostring(game.Players.LocalPlayer) .. "&secret=" .. Secret)
+                            end)
+                            return success, result
+                        end
+                        
+                        local success, source = checkLoader()
+                        if success and source then
+                            loadstring(source)()
+                        else
+                            warn("Loader failed to initialize")
+                        end
+                    `;
+                    
+                    navigator.clipboard.writeText(code);
+                    alert('Loader code copied to clipboard!');
+                }
+            } catch (error) {
+                alert('Failed to copy loader code');
+            }
+        }
+
+        loadLoaders();
+    </script>
+</body>
+</html>

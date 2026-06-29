@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logs - AuraHub</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/public/css/style.css">
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <img src="/public/img/logo.png" alt="AuraHub">
+            <h3>AuraHub</h3>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="/scripts"><i class="fas fa-code"></i> Scripts</a></li>
+            <li><a href="/loaders"><i class="fas fa-link"></i> Loaders</a></li>
+            <li><a href="/users"><i class="fas fa-users"></i> Users</a></li>
+            <li><a href="/logs" class="active"><i class="fas fa-history"></i> Logs</a></li>
+            <li><a href="/admin"><i class="fas fa-cog"></i> Admin</a></li>
+            <li><a href="/settings"><i class="fas fa-sliders-h"></i> Settings</a></li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <header class="topbar">
+            <div class="topbar-search">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search logs..." id="logSearch">
+            </div>
+            <div class="topbar-actions">
+                <button class="btn-icon"><i class="fas fa-bell"></i></button>
+                <button class="btn-icon sidebar-toggle"><i class="fas fa-bars"></i></button>
+                <div class="topbar-profile">
+                    <img src="https://ui-avatars.com/api/?name=Admin&background=6c5ce7&color=fff" alt="Profile">
+                    <div>
+                        <div class="username">Admin</div>
+                        <div class="role">Administrator</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <section>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                    <h1>Logs</h1>
+                    <p class="text-secondary">View execution logs</p>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <select id="logFilter" class="btn-glass">
+                        <option value="">All Status</option>
+                        <option value="SUCCESS">Success</option>
+                        <option value="ERROR">Error</option>
+                    </select>
+                    <button class="btn-glass" onclick="refreshLogs()"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <div class="table-container">
+                    <table class="table-glass">
+                        <thead>
+                            <tr>
+                                <th>Loader</th>
+                                <th>IP</th>
+                                <th>HWID</th>
+                                <th>Status</th>
+                                <th>Message</th>
+                                <th>Version</th>
+                                <th>Latency</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsList">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <span id="logsCount" class="text-secondary">Loading...</span>
+                    <div class="pagination-glass" id="pagination">
+                        <!-- Dynamic pagination -->
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let currentPage = 1;
+        const limit = 20;
+
+        async function loadLogs(page = 1, search = '', filter = '') {
+            try {
+                const token = localStorage.getItem('aurahub_token');
+                let url = `/api/logs?limit=${limit}`;
+                if (search) url += `&loaderId=${search}`;
+                if (filter) url += `&status=${filter}`;
+                
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderLogs(data.data);
+                    document.getElementById('logsCount').textContent = `Showing ${data.data.length} logs`;
+                }
+            } catch (error) {
+                console.error('Failed to load logs:', error);
+            }
+        }
+
+        function renderLogs(logs) {
+            const tbody = document.getElementById('logsList');
+            tbody.innerHTML = '';
+            
+            logs.forEach(log => {
+                const tr = document.createElement('tr');
+                const statusColor = log.status === 'SUCCESS' ? 'active' : 'inactive';
+                tr.innerHTML = `
+                    <td><code style="background: var(--bg-glass); padding: 2px 8px; border-radius: 4px;">${log.loaderId || 'N/A'}</code></td>
+                    <td>${log.ip || 'N/A'}</td>
+                    <td><code style="font-size: 11px;">${log.hwid || 'N/A'}</code></td>
+                    <td><span class="badge-status ${statusColor}">${log.status}</span></td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${log.message || ''}</td>
+                    <td>${log.version || 'N/A'}</td>
+                    <td>${log.latency || 0}ms</td>
+                    <td>${new Date(log.createdAt).toLocaleString()}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function refreshLogs() {
+            const search = document.getElementById('logSearch').value;
+            const filter = document.getElementById('logFilter').value;
+            loadLogs(currentPage, search, filter);
+        }
+
+        document.getElementById('logSearch')?.addEventListener('input', (e) => {
+            clearTimeout(this.searchTimeout);
+            this.searchTimeout = setTimeout(() => {
+                refreshLogs();
+            }, 300);
+        });
+
+        document.getElementById('logFilter')?.addEventListener('change', () => {
+            refreshLogs();
+        });
+
+        // Load initial logs
+        refreshLogs();
+    </script>
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scripts - AuraHub</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/public/css/style.css">
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <img src="/public/img/logo.png" alt="AuraHub">
+            <h3>AuraHub</h3>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="/scripts" class="active"><i class="fas fa-code"></i> Scripts</a></li>
+            <li><a href="/loaders"><i class="fas fa-link"></i> Loaders</a></li>
+            <li><a href="/users"><i class="fas fa-users"></i> Users</a></li>
+            <li><a href="/logs"><i class="fas fa-history"></i> Logs</a></li>
+            <li><a href="/admin"><i class="fas fa-cog"></i> Admin</a></li>
+            <li><a href="/settings"><i class="fas fa-sliders-h"></i> Settings</a></li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <header class="topbar">
+            <div class="topbar-search">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search scripts..." id="scriptSearch">
+            </div>
+            <div class="topbar-actions">
+                <button class="btn-icon"><i class="fas fa-bell"></i></button>
+                <button class="btn-icon sidebar-toggle"><i class="fas fa-bars"></i></button>
+                <div class="topbar-profile">
+                    <img src="https://ui-avatars.com/api/?name=Admin&background=6c5ce7&color=fff" alt="Profile">
+                    <div>
+                        <div class="username">Admin</div>
+                        <div class="role">Administrator</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <section>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                    <h1>Scripts</h1>
+                    <p class="text-secondary">Manage your Lua scripts</p>
+                </div>
+                <button class="btn-primary-glass" onclick="openCreateScript()">
+                    <i class="fas fa-plus"></i> New Script
+                </button>
+            </div>
+
+            <div class="glass-card">
+                <div class="table-container">
+                    <table class="table-glass">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Author</th>
+                                <th>Version</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scriptsList">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <span id="scriptsCount" class="text-secondary">Showing 0 scripts</span>
+                    <div class="pagination-glass" id="pagination">
+                        <!-- Dynamic pagination -->
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Create Script Modal -->
+    <div id="createScriptModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center;">
+        <div class="modal-glass" style="max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3>Create New Script</h3>
+                <button onclick="closeCreateScript()" style="background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer;">&times;</button>
+            </div>
+            <div style="padding: 24px;">
+                <form id="createScriptForm">
+                    <div style="margin-bottom: 16px;">
+                        <label>Script Name *</label>
+                        <input type="text" name="name" required>
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label>Author</label>
+                        <input type="text" name="author">
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label>Description</label>
+                        <textarea name="description" rows="3"></textarea>
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label>Version</label>
+                        <input type="text" name="version" value="1.0.0">
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label>Category</label>
+                        <select name="category">
+                            <option value="general">General</option>
+                            <option value="utility">Utility</option>
+                            <option value="game">Game</option>
+                            <option value="security">Security</option>
+                            <option value="ai">AI</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label>Source Code *</label>
+                        <textarea name="source" rows="10" required></textarea>
+                    </div>
+                    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button type="button" class="btn-glass" onclick="closeCreateScript()">Cancel</button>
+                        <button type="submit" class="btn-primary-glass">Create Script</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        const limit = 10;
+
+        async function loadScripts(page = 1, search = '') {
+            const token = localStorage.getItem('aurahub_token');
+            const url = `/api/scripts?page=${page}&limit=${limit}${search ? `&search=${search}` : ''}`;
+            
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderScripts(data.data);
+                    updatePagination(data.pagination);
+                    document.getElementById('scriptsCount').textContent = `Showing ${data.data.length} of ${data.pagination.total} scripts`;
+                }
+            } catch (error) {
+                console.error('Failed to load scripts:', error);
+            }
+        }
+
+        function renderScripts(scripts) {
+            const tbody = document.getElementById('scriptsList');
+            tbody.innerHTML = '';
+            
+            scripts.forEach(script => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${script.name}</strong></td>
+                    <td>${script.author || 'Unknown'}</td>
+                    <td>v${script.version}</td>
+                    <td>${script.category || 'general'}</td>
+                    <td><span class="badge-status ${script.enabled ? 'active' : 'inactive'}">${script.enabled ? 'Active' : 'Inactive'}</span></td>
+                    <td>${new Date(script.createdAt).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn-glass" style="padding: 4px 8px;" onclick="editScript('${script.uuid}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn-glass" style="padding: 4px 8px; color: var(--danger);" onclick="deleteScript('${script.uuid}')"><i class="fas fa-trash"></i></button>
+                        <button class="btn-glass" style="padding: 4px 8px;" onclick="generateLoader('${script.uuid}')"><i class="fas fa-link"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updatePagination(pagination) {
+            const container = document.getElementById('pagination');
+            container.innerHTML = '';
+            
+            for (let i = 1; i <= pagination.pages; i++) {
+                const button = document.createElement('button');
+                button.textContent = i;
+                button.className = i === pagination.page ? 'active' : '';
+                button.onclick = () => {
+                    currentPage = i;
+                    loadScripts(i, document.getElementById('scriptSearch').value);
+                };
+                container.appendChild(button);
+            }
+        }
+
+        function openCreateScript() {
+            document.getElementById('createScriptModal').style.display = 'flex';
+        }
+
+        function closeCreateScript() {
+            document.getElementById('createScriptModal').style.display = 'none';
+        }
+
+        document.getElementById('createScriptForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+            
+            try {
+                const token = localStorage.getItem('aurahub_token');
+                const response = await fetch('/api/scripts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    closeCreateScript();
+                    loadScripts(currentPage);
+                    alert('Script created successfully!');
+                } else {
+                    alert(result.error || 'Failed to create script');
+                }
+            } catch (error) {
+                alert('Error creating script');
+            }
+        });
+
+        document.getElementById('scriptSearch')?.addEventListener('input', (e) => {
+            clearTimeout(this.searchTimeout);
+            this.searchTimeout = setTimeout(() => {
+                loadScripts(1, e.target.value);
+            }, 300);
+        });
+
+        // Load initial scripts
+        loadScripts();
+    </script>
+</body>
+</html>
