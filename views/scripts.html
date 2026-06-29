@@ -10,7 +10,7 @@
 <body>
     <aside class="sidebar">
         <div class="sidebar-brand">
-            <img src="/public/img/logo.png" alt="AuraHub">
+            <img src="/public/img/logo.png" alt="AuraHub" onerror="this.style.display='none'">
             <h3>AuraHub</h3>
         </div>
         <ul class="sidebar-nav">
@@ -69,15 +69,18 @@
                             </tr>
                         </thead>
                         <tbody id="scriptsList">
-                            <!-- Dynamic content -->
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 40px;">
+                                    <div class="loading-spinner"></div>
+                                    <p style="margin-top: 12px; color: var(--text-secondary);">Loading scripts...</p>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
                 <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
-                    <span id="scriptsCount" class="text-secondary">Showing 0 scripts</span>
-                    <div class="pagination-glass" id="pagination">
-                        <!-- Dynamic pagination -->
-                    </div>
+                    <span id="scriptsCount" class="text-secondary">Loading...</span>
+                    <div class="pagination-glass" id="pagination"></div>
                 </div>
             </div>
         </section>
@@ -86,31 +89,31 @@
     <!-- Create Script Modal -->
     <div id="createScriptModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center;">
         <div class="modal-glass" style="max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;">
-            <div class="modal-header">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--border-glass);">
                 <h3>Create New Script</h3>
                 <button onclick="closeCreateScript()" style="background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer;">&times;</button>
             </div>
             <div style="padding: 24px;">
                 <form id="createScriptForm">
                     <div style="margin-bottom: 16px;">
-                        <label>Script Name *</label>
-                        <input type="text" name="name" required>
+                        <label style="display: block; margin-bottom: 4px; color: var(--text-secondary);">Script Name *</label>
+                        <input type="text" name="name" required style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border-glass); border-radius: 8px; color: var(--text-primary);">
                     </div>
                     <div style="margin-bottom: 16px;">
-                        <label>Author</label>
-                        <input type="text" name="author">
+                        <label style="display: block; margin-bottom: 4px; color: var(--text-secondary);">Author</label>
+                        <input type="text" name="author" style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border-glass); border-radius: 8px; color: var(--text-primary);">
                     </div>
                     <div style="margin-bottom: 16px;">
-                        <label>Description</label>
-                        <textarea name="description" rows="3"></textarea>
+                        <label style="display: block; margin-bottom: 4px; color: var(--text-secondary);">Description</label>
+                        <textarea name="description" rows="3" style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border-glass); border-radius: 8px; color: var(--text-primary);"></textarea>
                     </div>
                     <div style="margin-bottom: 16px;">
-                        <label>Version</label>
-                        <input type="text" name="version" value="1.0.0">
+                        <label style="display: block; margin-bottom: 4px; color: var(--text-secondary);">Version</label>
+                        <input type="text" name="version" value="1.0.0" style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border-glass); border-radius: 8px; color: var(--text-primary);">
                     </div>
                     <div style="margin-bottom: 16px;">
-                        <label>Category</label>
-                        <select name="category">
+                        <label style="display: block; margin-bottom: 4px; color: var(--text-secondary);">Category</label>
+                        <select name="category" style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border-glass); border-radius: 8px; color: var(--text-primary);">
                             <option value="general">General</option>
                             <option value="utility">Utility</option>
                             <option value="game">Game</option>
@@ -119,8 +122,8 @@
                         </select>
                     </div>
                     <div style="margin-bottom: 16px;">
-                        <label>Source Code *</label>
-                        <textarea name="source" rows="10" required></textarea>
+                        <label style="display: block; margin-bottom: 4px; color: var(--text-secondary);">Source Code *</label>
+                        <textarea name="source" rows="10" required style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border-glass); border-radius: 8px; color: var(--text-primary); font-family: monospace;"></textarea>
                     </div>
                     <div style="display: flex; gap: 12px; justify-content: flex-end;">
                         <button type="button" class="btn-glass" onclick="closeCreateScript()">Cancel</button>
@@ -134,9 +137,14 @@
     <script>
         let currentPage = 1;
         const limit = 10;
+        let token = localStorage.getItem('aurahub_token');
+
+        // Check authentication
+        if (!token) {
+            window.location.href = '/login';
+        }
 
         async function loadScripts(page = 1, search = '') {
-            const token = localStorage.getItem('aurahub_token');
             const url = `/api/scripts?page=${page}&limit=${limit}${search ? `&search=${search}` : ''}`;
             
             try {
@@ -145,21 +153,51 @@
                         'Authorization': `Bearer ${token}`
                     }
                 });
+                
+                if (response.status === 401) {
+                    localStorage.removeItem('aurahub_token');
+                    window.location.href = '/login';
+                    return;
+                }
+                
                 const data = await response.json();
                 
                 if (data.success) {
                     renderScripts(data.data);
                     updatePagination(data.pagination);
                     document.getElementById('scriptsCount').textContent = `Showing ${data.data.length} of ${data.pagination.total} scripts`;
+                } else {
+                    document.getElementById('scriptsList').innerHTML = `
+                        <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                            <i class="fas fa-exclamation-circle" style="font-size: 24px; margin-bottom: 8px;"></i>
+                            <p>${data.error || 'Failed to load scripts'}</p>
+                        </td></tr>
+                    `;
                 }
             } catch (error) {
                 console.error('Failed to load scripts:', error);
+                document.getElementById('scriptsList').innerHTML = `
+                    <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                        <i class="fas fa-exclamation-circle" style="font-size: 24px; margin-bottom: 8px;"></i>
+                        <p>Error loading scripts. Please try again.</p>
+                    </td></tr>
+                `;
             }
         }
 
         function renderScripts(scripts) {
             const tbody = document.getElementById('scriptsList');
             tbody.innerHTML = '';
+            
+            if (!scripts || scripts.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                        <i class="fas fa-code" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+                        <p>No scripts found. Create your first script!</p>
+                    </td></tr>
+                `;
+                return;
+            }
             
             scripts.forEach(script => {
                 const tr = document.createElement('tr');
@@ -184,6 +222,8 @@
             const container = document.getElementById('pagination');
             container.innerHTML = '';
             
+            if (!pagination || pagination.pages <= 1) return;
+            
             for (let i = 1; i <= pagination.pages; i++) {
                 const button = document.createElement('button');
                 button.textContent = i;
@@ -204,14 +244,13 @@
             document.getElementById('createScriptModal').style.display = 'none';
         }
 
-        document.getElementById('createScriptForm')?.addEventListener('submit', async (e) => {
+        document.getElementById('createScriptForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const form = e.target;
             const formData = new FormData(form);
             const data = Object.fromEntries(formData);
             
             try {
-                const token = localStorage.getItem('aurahub_token');
                 const response = await fetch('/api/scripts', {
                     method: 'POST',
                     headers: {
@@ -234,15 +273,71 @@
             }
         });
 
-        document.getElementById('scriptSearch')?.addEventListener('input', (e) => {
+        document.getElementById('scriptSearch').addEventListener('input', (e) => {
             clearTimeout(this.searchTimeout);
             this.searchTimeout = setTimeout(() => {
                 loadScripts(1, e.target.value);
             }, 300);
         });
 
+        async function deleteScript(uuid) {
+            if (!confirm('Are you sure you want to delete this script?')) return;
+            
+            try {
+                const response = await fetch(`/api/scripts/${uuid}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    loadScripts(currentPage);
+                    alert('Script deleted successfully!');
+                } else {
+                    alert(result.error || 'Failed to delete script');
+                }
+            } catch (error) {
+                alert('Error deleting script');
+            }
+        }
+
+        async function generateLoader(uuid) {
+            try {
+                const response = await fetch('/loader/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ scriptId: uuid })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert(`Loader generated!\nLoaderID: ${result.data.loaderId}\nSecret: ${result.data.secret}`);
+                } else {
+                    alert(result.error || 'Failed to generate loader');
+                }
+            } catch (error) {
+                alert('Error generating loader');
+            }
+        }
+
+        function editScript(uuid) {
+            alert('Edit functionality coming soon!');
+        }
+
         // Load initial scripts
         loadScripts();
+
+        // Close modal on outside click
+        document.getElementById('createScriptModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                closeCreateScript();
+            }
+        });
     </script>
 </body>
 </html>
