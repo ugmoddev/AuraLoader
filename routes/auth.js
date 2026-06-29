@@ -90,9 +90,8 @@ router.post('/login', async (req, res) => {
     );
 
     console.log('✅ Login successful for:', username);
-    console.log('🎫 Token generated');
 
-    // Save to session
+    // Lưu vào session
     req.session.token = token;
     req.session.user = {
       id: user.id,
