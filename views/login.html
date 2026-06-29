@@ -174,10 +174,21 @@
     </div>
 
     <script>
-        // KHÔNG TỰ ĐỘNG REDIRECT Ở ĐÂY
-        // Để server (middleware) xử lý việc redirect
-
         console.log('📄 Login page loaded');
+
+        // Helper function để redirect an toàn
+        function safeRedirect(url) {
+            console.log(`🚀 Redirecting to: ${url}`);
+            try {
+                window.location.href = url;
+            } catch (e) {
+                console.error('❌ Redirect failed:', e);
+                // Fallback: thử lại sau 100ms
+                setTimeout(() => {
+                    window.location.href = url;
+                }, 100);
+            }
+        }
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -220,16 +231,19 @@
                 if (data.success) {
                     // Lưu token
                     localStorage.setItem('aurahub_token', data.data.token);
-                    console.log('✅ Token saved');
+                    console.log('✅ Token saved:', data.data.token.substring(0, 20) + '...');
+                    
+                    // Kiểm tra token đã được lưu chưa
+                    const savedToken = localStorage.getItem('aurahub_token');
+                    console.log('🔑 Verifying saved token:', savedToken ? 'Present' : 'Missing');
                     
                     // Hiển thị success message
                     successEl.textContent = '✅ Login successful! Redirecting...';
                     successEl.style.display = 'block';
                     
-                    // Redirect bằng JavaScript
+                    // Redirect an toàn
                     setTimeout(() => {
-                        console.log('🚀 Redirecting to dashboard...');
-                        window.location.href = '/';
+                        safeRedirect('/');
                     }, 500);
                 } else {
                     errorEl.textContent = data.error || 'Login failed';
@@ -256,6 +270,29 @@
                 }
             }
         });
+
+        // Check if already logged in - CHỈ CHECK, KHÔNG TỰ ĐỘNG REDIRECT
+        const existingToken = localStorage.getItem('aurahub_token');
+        if (existingToken) {
+            console.log('🔑 Found existing token, verifying...');
+            // Có thể gọi /auth/me để verify token
+            // Nếu hợp lệ, redirect về dashboard
+            fetch('/auth/me', {
+                headers: {
+                    'Authorization': `Bearer ${existingToken}`
+                }
+            }).then(res => {
+                if (res.ok) {
+                    console.log('✅ Token valid, redirecting to dashboard');
+                    safeRedirect('/');
+                } else {
+                    console.log('❌ Token invalid, clearing...');
+                    localStorage.removeItem('aurahub_token');
+                }
+            }).catch(() => {
+                console.log('❌ Cannot verify token, staying on login page');
+            });
+        }
     </script>
 </body>
 </html>
