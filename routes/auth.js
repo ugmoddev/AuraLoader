@@ -5,43 +5,67 @@ const jwt = require('jsonwebtoken');
 const db = require('../database/database');
 
 // ============================================================
-// LOGIN - Hỗ trợ cả JSON và Form submit
+// MIDDLEWARE - Thêm CORS headers cho /auth/*
+// ============================================================
+
+router.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// ============================================================
+// LOGIN - Với debug chi tiết
 // ============================================================
 
 router.post('/login', async (req, res) => {
+  console.log('🔐 ===== LOGIN REQUEST =====');
+  console.log('📥 Headers:', req.headers);
+  console.log('📥 Body:', req.body);
+  
   try {
     const { username, password } = req.body;
 
-    console.log('🔐 Login attempt:', username);
-
     if (!username || !password) {
-      if (req.accepts('html')) {
-        return res.redirect('/login?error=Username and password required');
-      }
-      return res.status(400).json({ success: false, error: 'Username and password required' });
+      console.log('❌ Missing username or password');
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Username and password required' 
+      });
     }
 
+    console.log(`🔍 Looking for user: ${username}`);
     const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
+    
     if (!user) {
-      if (req.accepts('html')) {
-        return res.redirect('/login?error=Invalid credentials');
-      }
-      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+      console.log('❌ User not found:', username);
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid credentials' 
+      });
     }
 
+    console.log('✅ User found, verifying password...');
     const valid = await bcrypt.compare(password, user.password);
+    
     if (!valid) {
-      if (req.accepts('html')) {
-        return res.redirect('/login?error=Invalid credentials');
-      }
-      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+      console.log('❌ Invalid password for:', username);
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid credentials' 
+      });
     }
 
     if (user.status !== 'active') {
-      if (req.accepts('html')) {
-        return res.redirect('/login?error=Account is disabled');
-      }
-      return res.status(403).json({ success: false, error: 'Account is disabled' });
+      console.log('❌ Account disabled:', username);
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Account is disabled' 
+      });
     }
 
     // Update last login
@@ -63,16 +87,21 @@ router.post('/login', async (req, res) => {
     };
 
     console.log('✅ Login successful for:', username);
+    console.log('📤 Response:', { success: true, redirect: '/' });
 
     // =============================================
-    // QUAN TRỌNG: Redirect cho cả JSON và HTML
+    // Kiểm tra Accept header để quyết định response
     // =============================================
-    if (req.accepts('html')) {
+    const accept = req.headers.accept || '';
+    console.log(`📋 Accept header: ${accept}`);
+
+    if (accept.includes('text/html')) {
       // Nếu là form submit, redirect trực tiếp
+      console.log('🔄 HTML request, redirecting to /');
       return res.redirect('/');
     }
 
-    // Nếu là AJAX, trả về JSON
+    // Nếu là AJAX/JSON, trả về JSON
     res.json({
       success: true,
       redirect: '/',
@@ -89,10 +118,10 @@ router.post('/login', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Login error:', error);
-    if (req.accepts('html')) {
-      return res.redirect('/login?error=Login failed');
-    }
-    res.status(500).json({ success: false, error: 'Login failed' });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Login failed: ' + error.message 
+    });
   }
 });
 
@@ -107,16 +136,25 @@ router.post('/register', async (req, res) => {
     console.log('📝 Register attempt:', username);
 
     if (!username || !password) {
-      return res.status(400).json({ success: false, error: 'Username and password required' });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Username and password required' 
+      });
     }
 
     if (password.length < 6) {
-      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Password must be at least 6 characters' 
+      });
     }
 
     const existing = await db.get('SELECT * FROM users WHERE username = ?', [username]);
     if (existing) {
-      return res.status(400).json({ success: false, error: 'Username already taken' });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Username already taken' 
+      });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -137,7 +175,10 @@ router.post('/register', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Registration error:', error);
-    res.status(500).json({ success: false, error: 'Registration failed' });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Registration failed' 
+    });
   }
 });
 
@@ -149,20 +190,29 @@ router.get('/me', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
     if (!token) {
-      return res.status(401).json({ success: false, error: 'No token provided' });
+      return res.status(401).json({ 
+        success: false, 
+        error: 'No token provided' 
+      });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await db.get('SELECT id, username, email, role, createdAt, lastLogin FROM users WHERE id = ?', [decoded.id]);
 
     if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found' 
+      });
     }
 
     res.json({ success: true, data: user });
   } catch (error) {
     console.error('❌ Auth error:', error);
-    res.status(401).json({ success: false, error: 'Invalid token' });
+    res.status(401).json({ 
+      success: false, 
+      error: 'Invalid token' 
+    });
   }
 });
 
@@ -172,7 +222,10 @@ router.get('/me', async (req, res) => {
 
 router.post('/logout', (req, res) => {
   req.session.destroy();
-  res.json({ success: true, message: 'Logged out successfully' });
+  res.json({ 
+    success: true, 
+    message: 'Logged out successfully' 
+  });
 });
 
 module.exports = router;
